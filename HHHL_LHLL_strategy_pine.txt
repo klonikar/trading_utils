@@ -1,0 +1,34 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © lonikar
+
+//@version=5
+strategy("HHHL LHLL strategy", overlay=true, margin_long=100, margin_short=100)
+strategyTF = input.timeframe('60', 'Strategy Timeframe', ['5', '15', '30', '60', 'D', 'W'])//'60'
+rsi = request.security(syminfo.tickerid, strategyTF, ta.rsi(close, 14), lookahead=barmerge.lookahead_off)
+period = input.int(defval=20, title="Volume EMA Period", step=1)
+multiplier = input.float(defval=1.2, title="EMA Multiplier", step=0.1)
+
+[currentOpen, currentClose, currentHigh, currentLow, currentVolume, volumeEma] = request.security(syminfo.tickerid, strategyTF, [open, close, high, low, volume, ta.ema(volume, period)], lookahead=barmerge.lookahead_on)
+[prevOpen, prevClose, prevHigh, prevLow, prevVolume] = request.security(syminfo.tickerid, strategyTF, [open[1], close[1], high[1], low[1], volume[1]], lookahead=barmerge.lookahead_on)
+
+unusualVolume = currentVolume > volumeEma*multiplier
+
+// TODO: Stop loss: low of the previous candle in case of long trade and high of previous candle for short trade
+//longCondition = ta.crossover(ta.ema(close, 50), ta.ema(close, 200)) and ta.crossover(macdLine, signalLine) and ta.crossover(ta.rsi(close, 3), 80) and close > open and close[1] > open[1] and close > high[1]
+//longCondition = unusualVolume and currentHigh > prevHigh and currentLow > prevLow and currentClose > currentOpen and prevClose > prevOpen and currentClose > prevHigh
+longCondition = currentHigh > prevHigh and currentLow > prevLow and currentClose > currentOpen and prevClose > prevOpen and currentClose > prevHigh
+if (longCondition)
+    strategy.entry("Long Entry", strategy.long)
+    alert("HHLL based Long Entry", alert.freq_once_per_bar)
+
+//shortCondition = ta.crossunder(ta.ema(close, 50), ta.ema(close, 200)) and ta.crossunder(macdLine, signalLine) and ta.crossunder(ta.rsi(close, 3), 20) and close < open and close[1] < open[1] and close < low[1]
+//shortCondition = unusualVolume and currentHigh < prevHigh and currentLow < prevLow and currentClose < currentOpen and prevClose < prevOpen and currentClose < prevLow
+shortCondition = currentHigh < prevHigh and currentLow < prevLow and currentClose < currentOpen and prevClose < prevOpen and currentClose < prevLow
+if (shortCondition)
+    strategy.entry("Short Entry", strategy.short)
+    alert("LHLL based Short Entry", alert.freq_once_per_bar)
+
+// Plot the moving averages.
+plot(currentClose, "Close", color.white)
+plot(prevClose, "Prev Close", color.teal)
+barcolor(unusualVolume ? color.yellow : na)

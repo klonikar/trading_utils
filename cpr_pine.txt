@@ -1,0 +1,352 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// Â© For any Queries reachout to me at 
+//https://t.me/ChitraPrabuKrishnan
+//https://www.youtube.com/channel/UCnEcTfUdZlg5rWCCloLsS9A
+
+
+//@version=4
+study("CPR -TraderChitra", shorttitle="CPR-TraderChitra", overlay=true)
+
+// User inputs
+showTomorrowCPR = input(title="Show tomorrow's CPR", type=input.bool, defval=true)
+showHistoricalCPR = input(title="Show historical CPR", type=input.bool, defval=false)
+showR3S3 = input(title="Show R3/S3 & R4/S4", type=input.bool, defval=true)
+showPDHL = input(title="Show previous day's High & Low", type=input.bool, defval=false)
+showPDC = input(title="Show previous day's Close", type=input.bool, defval=false)
+showVWAP = input(title="Plot VWAP", type=input.bool, defval=false)
+
+
+
+
+// Defaults
+// CPR Colors
+cprColor = color.purple
+rColor = color.red
+sColor = color.green
+cColor = color.black
+
+// Line style & Transparency
+lStyle = plot.style_line
+lTransp = 35
+
+//Fill Transparency
+fTransp = 95
+
+
+// Global Variables & Flags
+// TODO : Update the No of Holidays
+noOfHolidays = 12
+
+
+// Global Functions
+// TODO : Update the list of Holiday here in format YYYY, MM, DD, 09, 15 
+// **09, 15 are session start hour & minutes
+IsHoliday(_date) =>
+    iff(_date == timestamp(2020, 02, 21, 09, 15), true, 
+         iff(_date == timestamp(2020, 03, 10, 09, 15), true, 
+         iff(_date == timestamp(2020, 04, 02, 09, 15), true, 
+         iff(_date == timestamp(2020, 04, 06, 09, 15), true, 
+         iff(_date == timestamp(2020, 04, 10, 09, 15), true, 
+         iff(_date == timestamp(2020, 04, 14, 09, 15), true,
+         iff(_date == timestamp(2020, 05, 01, 09, 15), true, 
+         iff(_date == timestamp(2020, 05, 25, 09, 15), true, 
+         iff(_date == timestamp(2020, 10, 02, 09, 15), true, 
+         iff(_date == timestamp(2020, 11, 16, 09, 15), true, 
+         iff(_date == timestamp(2020, 11, 30, 09, 15), true, 
+         iff(_date == timestamp(2020, 12, 25, 09, 15), true, 
+         false))))))))))))
+
+// Note: Week of Sunday=1...Saturday=7
+IsWeekend(_date) =>
+    dayofweek(_date) == 7 or dayofweek(_date) == 1
+
+// Skip Weekend
+SkipWeekend(_date) =>
+    _d = dayofweek(_date)
+    _mul = _d == 6 ? 3 : _d == 7 ? 2 : 1
+    
+    _date + (_mul * 86400000)
+
+
+// Get Next Working Day
+GetNextWorkingDay(_date) =>
+    _dt = SkipWeekend(_date)
+    
+    for i = 1 to noOfHolidays
+        if IsHoliday(_dt)
+            _dt := SkipWeekend(_dt)
+            continue
+        else
+            break
+    
+    _dt
+
+
+// Today's Session Start timestamp
+y = year(timenow)
+m = month(timenow)
+d = dayofmonth(timenow)
+
+// Start & End time for Today's CPR
+start = timestamp(y, m, d, 09, 15)
+end = start + 86400000
+
+// Plot Today's CPR
+shouldPlotToday = timenow > start
+
+tom_start = start
+tom_end = end
+
+// Start & End time for Tomorrow's CPR
+if shouldPlotToday
+    tom_start := GetNextWorkingDay(start)
+    tom_end := tom_start + 86400000
+
+
+// Get series
+getSeries(e, timeFrame) => security(syminfo.tickerid, "D", e, lookahead=barmerge.lookahead_on) 
+
+// Calculate Today's CPR
+//Get High, Low and Close
+H = getSeries(high[1], 'D')
+L = getSeries(low[1], 'D')
+C = getSeries(close[1], 'D')
+
+
+// Pivot Range
+P = (H + L + C) / 3
+BC = (H + L)/2
+TC = (P - BC) + P 
+
+
+
+
+
+// Resistance Levels
+R1 = 2 *P-L
+R2 = P + (H-L)
+R3 = R1 + (H -L)
+R4 = R3 + (R2-R1)
+
+
+// Support Levels
+S1 = P * 2 - H
+S2 = P - (H - L)
+S3 = S1 - (H - L)
+S4 = S3 - (S1-S2)
+
+
+// Plot Today's CPR
+if not(IsHoliday(start)) and not(IsWeekend(start)) and shouldPlotToday
+    if showR3S3
+        _r3 = line.new(start, R3, end, R3, xloc.bar_time, color=color.new(rColor, lTransp))
+        line.delete(_r3[1])
+		_r4 = line.new(start, R4, end, R4, xloc.bar_time, color=color.new(rColor, lTransp))
+        line.delete(_r4[1])
+
+    _r2 = line.new(start, R2, end, R2, xloc.bar_time, color=color.new(rColor, lTransp))
+    line.delete(_r2[1])
+    _r1 = line.new(start, R1, end, R1, xloc.bar_time, color=color.new(rColor, lTransp))
+    line.delete(_r1[1])
+    
+    _tc = line.new(start, TC, end, TC, xloc.bar_time, color=color.new(cprColor, lTransp))
+    line.delete(_tc[1])
+    _p = line.new(start, P, end, P, xloc.bar_time, color=color.new(cprColor, lTransp))
+    line.delete(_p[1])
+    _bc = line.new(start, BC, end, BC, xloc.bar_time, color=color.new(cprColor, lTransp))
+    line.delete(_bc[1])
+    
+    _s1 = line.new(start, S1, end, S1, xloc.bar_time, color=color.new(sColor, lTransp))
+    line.delete(_s1[1])
+    _s2 = line.new(start, S2, end, S2, xloc.bar_time, color=color.new(sColor, lTransp))
+    line.delete(_s2[1])
+    if showR3S3
+        _s3 = line.new(start, S3, end, S3, xloc.bar_time, color=color.new(sColor, lTransp))
+        line.delete(_s3[1])
+		_s4 = line.new(start, S4, end, S4, xloc.bar_time, color=color.new(sColor, lTransp))
+        line.delete(_s4[1])
+    if showPDHL
+        _pdh = line.new(start, H, end, H, xloc.bar_time, color=color.new(rColor, lTransp), style=line.style_dotted, width=2)
+        line.delete(_pdh[1])
+        _pdl = line.new(start, L, end, L, xloc.bar_time, color=color.new(sColor, lTransp), style=line.style_dotted, width=2)
+        line.delete(_pdl[1])
+    if showPDC
+        _pdc = line.new(start, C, end, C, xloc.bar_time, color=color.new(cColor, lTransp), style=line.style_dotted, width=2)
+        line.delete(_pdc[1])
+
+// Plot Today's Labels
+if not(IsHoliday(start)) and not(IsWeekend(start)) and shouldPlotToday
+	if showR3S3
+		l_r3 = label.new(start, R3, text="R3", xloc=xloc.bar_time, textcolor=rColor, style=label.style_none)
+		label.delete(l_r3[1])
+		l_r4 = label.new(start, R4, text="R4", xloc=xloc.bar_time, textcolor=rColor, style=label.style_none)
+		label.delete(l_r4[1])
+	l_r2 = label.new(start, R2, text="R2", xloc=xloc.bar_time, textcolor=rColor, style=label.style_none)
+	label.delete(l_r2[1])
+	l_r1 = label.new(start, R1, text="R1", xloc=xloc.bar_time, textcolor=rColor, style=label.style_none)
+	label.delete(l_r1[1])
+
+	//l_tc = label.new(start, TC, text="TC", xloc=xloc.bar_time, textcolor=cprColor, style=label.style_none)
+	//label.delete(l_tc[1])
+	l_p = label.new(start, P, text="P", xloc=xloc.bar_time, textcolor=cprColor, style=label.style_none)
+	label.delete(l_p[1])
+	//l_bc = label.new(start, BC, text="BC", xloc=xloc.bar_time, textcolor=cprColor, style=label.style_none)
+	//label.delete(l_bc[1])
+
+	l_s1 = label.new(start, S1, text="S1", xloc=xloc.bar_time, textcolor=sColor, style=label.style_none)
+	label.delete(l_s1[1])
+	l_s2 = label.new(start, S2, text="S2", xloc=xloc.bar_time, textcolor=sColor, style=label.style_none)
+	label.delete(l_s2[1])
+	if showR3S3
+		l_s3 = label.new(start, S3, text="S3", xloc=xloc.bar_time, textcolor=sColor, style=label.style_none)
+		label.delete(l_s3[1])
+		l_s4 = label.new(start, S4, text="S4", xloc=xloc.bar_time, textcolor=sColor, style=label.style_none)
+		label.delete(l_s4[1])
+	if showPDHL
+		l_pdh = label.new(start, H, text="PD High", xloc=xloc.bar_time, textcolor=rColor, style=label.style_none)
+		label.delete(l_pdh[1])
+		l_pdl = label.new(start, L, text="PD Low", xloc=xloc.bar_time, textcolor=sColor, style=label.style_none)
+		label.delete(l_pdl[1])
+	if showPDC
+		l_pdc = label.new(start, C, text="PD Close", xloc=xloc.bar_time, textcolor=cColor, style=label.style_none)
+		label.delete(l_pdc[1])
+
+
+// Calculate Tomorrow's CPR
+// Get High, Low and Close
+tH = getSeries(high, 'D')
+tL = getSeries(low, 'D')
+tC = getSeries(close, 'D')
+
+// Pivot Range
+tP = (tH + tL + tC) / 3 
+tBC = (tH + tL)/2
+tTC = (tP - tBC) + tP 
+
+
+
+
+
+// Resistance Levels
+tR1 = 2 *tP-tL
+tR2 = tP + (tH-tL)
+tR3 = tR1 + (tH -tL)
+tR4 = tR3+ (tR2-tR1)
+
+
+// Support Levels
+tS1 = tP * 2 - tH
+tS2 = tP - (tH - tL)
+tS3 = tS1 - (tH - tL)
+tS4 = tS3 - (tS1-tS2)
+
+
+// Plot Tomorrow's CPR
+if showTomorrowCPR
+	if showR3S3
+		_t_r3 = line.new(tom_start, tR3, tom_end, tR3, xloc.bar_time, color=color.new(rColor, lTransp))
+		line.delete(_t_r3[1])
+		_t_r4 = line.new(tom_start, tR4, tom_end, tR4, xloc.bar_time, color=color.new(rColor, lTransp))
+		line.delete(_t_r4[1])
+	_t_r2 = line.new(tom_start, tR2, tom_end, tR2, xloc.bar_time, color=color.new(rColor, lTransp))
+	line.delete(_t_r2[1])
+	_t_r1 = line.new(tom_start, tR1, tom_end, tR1, xloc.bar_time, color=color.new(rColor, lTransp))
+	line.delete(_t_r1[1])
+
+	_t_tc = line.new(tom_start, tTC, tom_end, tTC, xloc.bar_time, color=color.new(cprColor, lTransp),width = 2)
+	line.delete(_t_tc[1])
+	_t_p = line.new(tom_start, tP, tom_end, tP, xloc.bar_time, color=color.new(cprColor, lTransp),width = 2)
+	line.delete(_t_p[1])
+	_t_bc = line.new(tom_start, tBC, tom_end, tBC, xloc.bar_time, color=color.new(cprColor, lTransp),width = 2)
+	line.delete(_t_bc[1])
+
+	_t_s1 = line.new(tom_start, tS1, tom_end, tS1, xloc.bar_time, color=color.new(sColor, lTransp))
+	line.delete(_t_s1[1])
+	_t_s2 = line.new(tom_start, tS2, tom_end, tS2, xloc.bar_time, color=color.new(sColor, lTransp))
+	line.delete(_t_s2[1])
+	if showR3S3
+		_t_s3 = line.new(tom_start, tS3, tom_end, tS3, xloc.bar_time, color=color.new(sColor, lTransp))
+		line.delete(_t_s3[1])
+		_t_s4 = line.new(tom_start, tS4, tom_end, tS4, xloc.bar_time, color=color.new(sColor, lTransp))
+		line.delete(_t_s4[1])
+    if showPDHL
+        _pdth = line.new(tom_start, tH, tom_end, tH, xloc.bar_time, color=color.new(rColor, lTransp), style=line.style_dotted, width=2)
+        line.delete(_pdth[1])
+        _pdtl = line.new(tom_start, tL, tom_end, tL, xloc.bar_time, color=color.new(sColor, lTransp), style=line.style_dotted, width=2)
+        line.delete(_pdtl[1])
+    if showPDC
+        _pdtc = line.new(tom_start, tC, tom_end, tC, xloc.bar_time, color=color.new(cColor, lTransp), style=line.style_dotted, width=2)
+        line.delete(_pdtc[1])
+
+// Plot Tomorrow's Labels
+if showTomorrowCPR
+	if showR3S3
+		l_t_r3 = label.new(tom_start, tR3, text="R3", xloc=xloc.bar_time, textcolor=rColor, style=label.style_none)
+		label.delete(l_t_r3[1])
+		l_t_r4 = label.new(tom_start, tR4, text="R4", xloc=xloc.bar_time, textcolor=rColor, style=label.style_none)
+		label.delete(l_t_r4[1])
+	l_t_r2 = label.new(tom_start, tR2, text="R2", xloc=xloc.bar_time, textcolor=rColor, style=label.style_none)
+	label.delete(l_t_r2[1])
+	l_t_r1 = label.new(tom_start, tR1, text="R1", xloc=xloc.bar_time, textcolor=rColor, style=label.style_none)
+	label.delete(l_t_r1[1])
+
+	//l_t_tc = label.new(tom_start, tTC, text="TC", xloc=xloc.bar_time, textcolor=cprColor, style=label.style_none)
+	//label.delete(l_t_tc[1])
+	l_t_p = label.new(tom_start, tP, text="P", xloc=xloc.bar_time, textcolor=cprColor, style=label.style_none)
+	label.delete(l_t_p[1])
+	//l_t_bc = label.new(tom_start, tBC, text="BC", xloc=xloc.bar_time, textcolor=cprColor, style=label.style_none)
+	//label.delete(l_t_bc[1])
+
+	l_t_s1 = label.new(tom_start, tS1, text="S1", xloc=xloc.bar_time, textcolor=sColor, style=label.style_none)
+	label.delete(l_t_s1[1])
+	l_t_s2 = label.new(tom_start, tS2, text="S2", xloc=xloc.bar_time, textcolor=sColor, style=label.style_none)
+	label.delete(l_t_s2[1])
+	if showR3S3
+		l_t_s3 = label.new(tom_start, tS3, text="S3", xloc=xloc.bar_time, textcolor=sColor, style=label.style_none)
+		label.delete(l_t_s3[1])
+		l_t_s4 = label.new(tom_start, tS4, text="S4", xloc=xloc.bar_time, textcolor=sColor, style=label.style_none)
+		label.delete(l_t_s4[1])
+	if showPDHL
+		l_pdth = label.new(tom_start, tH, text="PD High", xloc=xloc.bar_time, textcolor=rColor, style=label.style_none)
+		label.delete(l_pdth[1])
+		l_pdtl = label.new(tom_start, tL, text="PD Low", xloc=xloc.bar_time, textcolor=sColor, style=label.style_none)
+		label.delete(l_pdtl[1])
+	if showPDC
+		l_pdtc = label.new(tom_start, tC, text="PD Close", xloc=xloc.bar_time, textcolor=cColor, style=label.style_none)
+		label.delete(l_pdtc[1])
+
+
+//Plot Historical CPR
+p_r4 = plot(showHistoricalCPR ? showR3S3 ? R4 : na : na, title=' R4', color=rColor, transp=lTransp, style=lStyle)
+p_r3 = plot(showHistoricalCPR ? showR3S3 ? R3 : na : na, title=' R3', color=rColor, transp=lTransp, style=lStyle)
+p_r2 = plot(showHistoricalCPR ? R2 : na, title=' R2', color=rColor, transp=lTransp, style=lStyle)
+p_r1 = plot(showHistoricalCPR ? R1 : na, title=' R1', color=rColor, transp=lTransp, style=lStyle)
+
+
+p_cprTC = plot(showHistoricalCPR ? TC : na, title=' TC', color=cprColor, transp=lTransp, style=lStyle)
+p_cprP = plot(showHistoricalCPR ? P : na, title=' P', color=cprColor, transp=lTransp, style=lStyle)
+p_cprBC = plot(showHistoricalCPR ? BC : na, title=' BC', color=cprColor, transp=lTransp, style=lStyle)
+
+s1 = plot(showHistoricalCPR ? S1 : na, title=' S1', color=sColor, transp=lTransp, style=lStyle)
+s2 = plot(showHistoricalCPR ? S2 : na, title=' S2', color=sColor, transp=lTransp, style=lStyle)
+s3 = plot(showHistoricalCPR ? showR3S3 ? S3 : na : na, title=' S3', color=sColor, transp=lTransp, style=lStyle)
+s4 = plot(showHistoricalCPR ? showR3S3 ? S4 : na : na, title=' S4', color=sColor, transp=lTransp, style=lStyle)
+
+fill(p_cprTC, p_cprBC, color=color.purple, transp=fTransp)
+
+vwapS =plot(showVWAP ? vwap(close) : na,title =' Vwap Color' ,color=color.blue,linewidth = 2)
+
+// Bollinger Bands inputs
+
+// Calculate Bollinger Bands
+basis = sma(close, 20)
+dev = 2.0 * stdev(close, 20)
+
+upper_band = basis + dev
+lower_band = basis - dev
+
+// Plotting the Bollinger Bands
+//plot(basis, color=color.blue, title="Basis")
+//UB=plot( upper_band,  title="Upper Band",linewidth = 0,display = display.none)
+//LB=plot( lower_band,  title="Lower Band",linewidth = 0,display = display.none)
+//fill(UB, LB, color=color.rgb(235, 235, 231, 43), title="BB Fill")

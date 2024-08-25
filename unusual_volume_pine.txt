@@ -1,0 +1,9 @@
+//@version=5
+indicator("Unusual Volume", overlay=true)
+
+period = input.int(defval=20, title="Period", step=1)
+multiplier = input.float(defval=1.2, title="Multiplier", step=0.1)
+
+unusualVolume = volume > ta.ema(volume, period)*multiplier
+barcolor(unusualVolume ? color.yellow : na)
+

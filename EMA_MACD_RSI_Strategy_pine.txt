@@ -1,0 +1,31 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © lonikar
+
+//@version=5
+strategy("EMA MACD RSI strategy", overlay=true, margin_long=100, margin_short=100)
+strategyTF = input.timeframe('60', 'Strategy Timeframe', ['5', '15', '30', '60', 'D', 'W'])//'60'
+[macdLine, signalLine, histLine] = request.security(syminfo.tickerid, strategyTF, ta.macd(close, 12, 26, 9), lookahead=barmerge.lookahead_off)
+rsi = request.security(syminfo.tickerid, strategyTF, ta.rsi(close, 3), lookahead=barmerge.lookahead_off)
+fastMA = request.security(syminfo.tickerid, strategyTF, ta.ema(close, 50), lookahead=barmerge.lookahead_off)
+slowMA = request.security(syminfo.tickerid, strategyTF, ta.ema(close, 200), lookahead=barmerge.lookahead_off)
+[currentOpen, currentClose, currentHigh, currentLow] = request.security(syminfo.tickerid, strategyTF, [open, close, high, low], lookahead=barmerge.lookahead_on)
+[prevOpen, prevClose, prevHigh, prevLow] = request.security(syminfo.tickerid, strategyTF, [open[1], close[1], high[1], low[1]], lookahead=barmerge.lookahead_on)
+
+//longCondition = ta.crossover(ta.ema(close, 50), ta.ema(close, 200)) and ta.crossover(macdLine, signalLine) and ta.crossover(ta.rsi(close, 3), 80) and close > open and close[1] > open[1] and close > high[1]
+longCondition = fastMA > slowMA and macdLine > signalLine and currentClose > fastMA and rsi > 80 and currentClose > currentOpen and prevClose > prevOpen and currentClose > prevHigh
+if (longCondition)
+    strategy.entry("Long Entry", strategy.long)
+    alert("EMA MACD RSI based Long Entry", alert.freq_once_per_bar)
+
+//shortCondition = ta.crossunder(ta.ema(close, 50), ta.ema(close, 200)) and ta.crossunder(macdLine, signalLine) and ta.crossunder(ta.rsi(close, 3), 20) and close < open and close[1] < open[1] and close < low[1]
+shortCondition = fastMA < slowMA and macdLine < signalLine and currentClose < fastMA and rsi < 20 and currentClose < currentOpen and prevClose < prevOpen and currentClose < prevLow
+if (shortCondition)
+    strategy.entry("Short Entry", strategy.short)
+    alert("EMA MACD RSI based Short Entry", alert.freq_once_per_bar)
+
+// Plot the moving averages.
+plot(fastMA, "Fast MA", color.aqua)
+plot(slowMA, "Slow MA", color.orange)
+plot(currentClose, "Close", color.white)
+plot(prevClose, "Prev Close", color.teal)
+

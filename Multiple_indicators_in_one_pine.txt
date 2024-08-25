@@ -1,0 +1,44 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © lonikar
+
+//@version=5
+indicator("Multiple indicators in one", overlay=true)
+emaFast = input(50, "50 EMA")
+emaSlow = input(200, "200 EMA")
+
+plot(ta.ema(close, emaFast), title="ema50", color=color.green)
+plot(ta.ema(close, emaSlow), title="ema200", color=color.yellow)
+
+prev_high = request.security(syminfo.tickerid, 'D', high[1], lookahead=barmerge.lookahead_on)
+prev_low = request.security(syminfo.tickerid, 'D', low[1], lookahead=barmerge.lookahead_on)
+prev_week_high = request.security(syminfo.tickerid, 'W', high[1], lookahead=barmerge.lookahead_on)
+prev_week_low = request.security(syminfo.tickerid, 'W', low[1], lookahead=barmerge.lookahead_on)
+prev_month_high = request.security(syminfo.tickerid, 'M', high[1], lookahead=barmerge.lookahead_on)
+prev_month_low = request.security(syminfo.tickerid, 'M', low[1], lookahead=barmerge.lookahead_on)
+
+plot(prev_high, title="Prev Day High", style = plot.style_linebr, color=color.green)
+plot(prev_low, title="Prev Day Low", style = plot.style_linebr, color=color.red)
+plot(prev_week_high, title="Prev Week High", style = plot.style_circles, color=color.green, linewidth = 2)
+plot(prev_week_low, title="Prev Week Low", style = plot.style_circles, color=color.red, linewidth = 2)
+plot(prev_month_high, title="Prev Month High", style = plot.style_cross, color=color.green, linewidth = 2)
+plot(prev_month_low, title="Prev Month Low", style = plot.style_cross, color=color.red, linewidth = 2)
+
+// From https://www.tradingview.com/pine-script-reference/v5/#fun_ta{dot}vwap
+//vwapAnchorInput = input.string("Daily", "Anchor", options = ["Daily", "Weekly", "Monthly"])
+//stdevMultiplierInput = input.float(1.0, "Standard Deviation Multiplier")
+//anchorTimeframe = switch vwapAnchorInput
+//    "Daily"   => "1D"
+//    "Weekly"  => "1W"
+//    "Monthly" => "1M"
+//anchor = timeframe.change(anchorTimeframe)
+//[vwap, upper, lower] = ta.vwap(open, anchor, stdevMultiplierInput)
+//plot(vwap)
+//plot(upper, color = color.green)
+//plot(lower, color = color.green)
+anchor = timeframe.change("15")
+plot(ta.vwap(hlc3, anchor), title="VWAP", color=color.olive, linewidth = 2)
+[basis, upper, lower] = ta.bb(close, 20, 2)
+plot(basis, title="BB", color=color.navy, linewidth = 2)
+plot(upper, title="BB Upper", color=color.maroon, linewidth = 2)
+plot(lower, title="BB Lower", color=color.lime, linewidth = 2)
+

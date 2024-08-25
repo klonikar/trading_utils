@@ -1,0 +1,190 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © lonikar
+//@version=5
+indicator("Nifty Banknifty Finnifty Components", "", overlay=true)
+
+var string GP2 = "Display"
+string  tableYposInput = input.string("top", "Panel position", inline = "11", options = ["top", "middle", "bottom"], group = GP2)
+string  tableXposInput = input.string("right", "", inline = "11", options = ["left", "center", "right"], group = GP2)
+color   bullColorInput = input.color(color.new(color.green, 30), "Bull", inline = "12", group = GP2)
+color   bearColorInput = input.color(color.new(color.red, 30), "Bear", inline = "12", group = GP2)
+color   neutColorInput = input.color(color.new(color.gray, 30), "Neutral", inline = "12", group = GP2)
+string  niftyOrBanknifty = syminfo.ticker
+
+StrNiftySymbols = "NSE:HDFCBANK,NSE:RELIANCE,NSE:ICICIBANK,NSE:INFY,NSE:ITC,NSE:TCS,NSE:LT,NSE:KOTAKBANK,NSE:AXISBANK,NSE:SBI"
+StrBankniftySymbols = "NSE:HDFCBANK,NSE:ICICIBANK,NSE:SBIN,NSE:AXISBANK,NSE:KOTAKBANK,NSE:INDUSINDBK,NSE:AUBANK,NSE:BANKBARODA,NSE:FEDERALBNK,NSE:IDFCFIRSTB"
+
+StrSymbols = niftyOrBanknifty == "NIFTY" ? StrNiftySymbols : StrBankniftySymbols
+
+StrSymbolsArray = str.split(StrSymbols, ",")
+
+fnGet_CloseAndVwap(Symbol) =>
+    [Varclose, VarVwap] = request.security(Symbol, timeframe.period, [close, ta.vwap(close)], lookahead=barmerge.lookahead_on)
+    [dayOpen, dayClose, dayHigh, dayLow] = request.security(Symbol, 'D', [open[1], close[1], high[1], low[1]], lookahead=barmerge.lookahead_off)
+    [Varclose,VarVwap, dayOpen, dayClose, dayHigh, dayLow]
+
+var float foreignData_1 = na
+var float foreignData_2 = na
+var float foreignData_3 = na
+var float foreignData_4 = na
+var float foreignData_5 = na
+var float foreignData_6 = na
+var float foreignData_7 = na
+var float foreignData_8 = na
+var float foreignData_9 = na
+var float foreignData_10 = na
+
+var float foreign_vwap1 = na
+var float foreign_vwap2 = na
+var float foreign_vwap3 = na
+var float foreign_vwap4 = na
+var float foreign_vwap5 = na
+var float foreign_vwap6 = na
+var float foreign_vwap7 = na
+var float foreign_vwap8 = na
+var float foreign_vwap9 = na
+var float foreign_vwap10 = na
+
+var float foreign_close1 = na
+var float foreign_close2 = na
+var float foreign_close3 = na
+var float foreign_close4 = na
+var float foreign_close5 = na
+var float foreign_close6 = na
+var float foreign_close7 = na
+var float foreign_close8 = na
+var float foreign_close9 = na
+var float foreign_close10 = na
+
+if niftyOrBanknifty == "NIFTY"
+    [fd1,fd1v,dayOpen1,dayClose1,dayHigh1,dayLow1] = fnGet_CloseAndVwap("NSE:HDFCBANK")
+    [fd2,fd2v,dayOpen2,dayClose2,dayHigh2,dayLow2] = fnGet_CloseAndVwap("NSE:RELIANCE")
+    [fd3,fd3v,dayOpen3,dayClose3,dayHigh3,dayLow3] = fnGet_CloseAndVwap("NSE:ICICIBANK")
+    [fd4,fd4v,dayOpen4,dayClose4,dayHigh4,dayLow4] = fnGet_CloseAndVwap("NSE:INFY")
+    [fd5,fd5v,dayOpen5,dayClose5,dayHigh5,dayLow5] = fnGet_CloseAndVwap("NSE:ITC")
+    [fd6,fd6v,dayOpen6,dayClose6,dayHigh6,dayLow6] = fnGet_CloseAndVwap("NSE:TCS")
+    [fd7,fd7v,dayOpen7,dayClose7,dayHigh7,dayLow7] = fnGet_CloseAndVwap("NSE:LT")
+    [fd8,fd8v,dayOpen8,dayClose8,dayHigh8,dayLow8] = fnGet_CloseAndVwap("NSE:KOTAKBANK")
+    [fd9,fd9v,dayOpen9,dayClose9,dayHigh9,dayLow9] = fnGet_CloseAndVwap("NSE:AXISBANK")
+    [fd10,fd10v,dayOpen10,dayClose10,dayHigh10,dayLow10] = fnGet_CloseAndVwap("NSE:SBIN")
+    foreignData_1 := fd1
+    foreignData_2 := fd2
+    foreignData_3 := fd3
+    foreignData_4 := fd4
+    foreignData_5 := fd5
+    foreignData_6 := fd6
+    foreignData_7 := fd7
+    foreignData_8 := fd8
+    foreignData_9 := fd9
+    foreignData_10 := fd10
+    foreign_vwap1 := fd1v
+    foreign_vwap2 := fd2v
+    foreign_vwap3 := fd3v
+    foreign_vwap4 := fd4v
+    foreign_vwap5 := fd5v
+    foreign_vwap6 := fd6v
+    foreign_vwap7 := fd7v
+    foreign_vwap8 := fd8v
+    foreign_vwap9 := fd9v
+    foreign_vwap10 := fd10v
+    foreign_close1 := dayClose1
+    foreign_close2 := dayClose2
+    foreign_close3 := dayClose3
+    foreign_close4 := dayClose4
+    foreign_close5 := dayClose5
+    foreign_close6 := dayClose6
+    foreign_close7 := dayClose7
+    foreign_close8 := dayClose8
+    foreign_close9 := dayClose9
+    foreign_close10 := dayClose10
+else
+    [fd1,fd1v,dayOpen1,dayClose1,dayHigh1,dayLow1] = fnGet_CloseAndVwap("NSE:HDFCBANK")
+    [fd2,fd2v,dayOpen2,dayClose2,dayHigh2,dayLow2] = fnGet_CloseAndVwap("NSE:ICICIBANK")
+    [fd3,fd3v,dayOpen3,dayClose3,dayHigh3,dayLow3] = fnGet_CloseAndVwap("NSE:SBIN")
+    [fd4,fd4v,dayOpen4,dayClose4,dayHigh4,dayLow4] = fnGet_CloseAndVwap("NSE:AXISBANK")
+    [fd5,fd5v,dayOpen5,dayClose5,dayHigh5,dayLow5] = fnGet_CloseAndVwap("NSE:KOTAKBANK")
+    [fd6,fd6v,dayOpen6,dayClose6,dayHigh6,dayLow6] = fnGet_CloseAndVwap("NSE:INDUSINDBK")
+    [fd7,fd7v,dayOpen7,dayClose7,dayHigh7,dayLow7] = fnGet_CloseAndVwap("NSE:AUBANK")
+    [fd8,fd8v,dayOpen8,dayClose8,dayHigh8,dayLow8] = fnGet_CloseAndVwap("NSE:BANKBARODA")
+    [fd9,fd9v,dayOpen9,dayClose9,dayHigh9,dayLow9] = fnGet_CloseAndVwap("NSE:FEDERALBNK")
+    [fd10,fd10v,dayOpen10,dayClose10,dayHigh10,dayLow10] = fnGet_CloseAndVwap("NSE:IDFCFIRSTB")
+    foreignData_1 := fd1
+    foreignData_2 := fd2
+    foreignData_3 := fd3
+    foreignData_4 := fd4
+    foreignData_5 := fd5
+    foreignData_6 := fd6
+    foreignData_7 := fd7
+    foreignData_8 := fd8
+    foreignData_9 := fd9
+    foreignData_10 := fd10
+    foreign_vwap1 := fd1v
+    foreign_vwap2 := fd2v
+    foreign_vwap3 := fd3v
+    foreign_vwap4 := fd4v
+    foreign_vwap5 := fd5v
+    foreign_vwap6 := fd6v
+    foreign_vwap7 := fd7v
+    foreign_vwap8 := fd8v
+    foreign_vwap9 := fd9v
+    foreign_vwap10 := fd10v
+    foreign_close1 := dayClose1
+    foreign_close2 := dayClose2
+    foreign_close3 := dayClose3
+    foreign_close4 := dayClose4
+    foreign_close5 := dayClose5
+    foreign_close6 := dayClose6
+    foreign_close7 := dayClose7
+    foreign_close8 := dayClose8
+    foreign_close9 := dayClose9
+    foreign_close10 := dayClose10
+
+var table panel = table.new(tableYposInput + "_" + tableXposInput, 3,array.size(StrSymbolsArray)+1,border_width = 1,border_color = color.blue)
+
+table.cell(panel, 0, 0, "Symbol", bgcolor = neutColorInput,text_size=size.small)
+table.cell(panel, 1, 0, "Close", bgcolor = neutColorInput,text_size=size.small)
+table.cell(panel, 2, 0, "VWAP", bgcolor = neutColorInput,text_size=size.small)
+
+for i = 0 to array.size(StrSymbolsArray) - 1
+    DataItem_Name = str.tostring(array.get(StrSymbolsArray, i))
+    table.cell(panel, 0, i+1, str.replace(str.tostring(DataItem_Name),"NSE:",""), bgcolor = neutColorInput, text_color = color.white, text_size=size.small)
+ 
+table.cell(panel, 1, 1, str.tostring(foreignData_1) + ": " + str.tostring(math.round(foreignData_1-foreign_close1, 2)), bgcolor =  foreignData_1 > foreign_close1  ?  bullColorInput : bearColorInput, text_color = color.white, text_size=size.small)
+table.cell(panel, 2, 1, str.tostring(math.round(foreign_vwap1,2)), bgcolor =  foreignData_1 > foreign_close1  ?  bullColorInput : bearColorInput, text_size=size.small)
+ 
+table.cell(panel, 1, 2, str.tostring(foreignData_2) + ": " + str.tostring(math.round(foreignData_2-foreign_close2, 2)), bgcolor =  foreignData_2 > foreign_close2  ?  bullColorInput : bearColorInput, text_color = color.white, text_size=size.small)
+table.cell(panel, 2, 2, str.tostring(math.round(foreign_vwap2,2)), bgcolor =  foreignData_2 > foreign_close2  ?  bullColorInput : bearColorInput, text_size=size.small)
+
+table.cell(panel, 1, 3, str.tostring(foreignData_3) + ": " + str.tostring(math.round(foreignData_3-foreign_close3, 2)), bgcolor =  foreignData_3 > foreign_close3  ?  bullColorInput : bearColorInput, text_color = color.white, text_size=size.small)
+table.cell(panel, 2, 3, str.tostring(math.round(foreign_vwap3,2)), bgcolor =  foreignData_3 > foreign_close3  ?  bullColorInput : bearColorInput, text_size=size.small)
+ 
+table.cell(panel, 1, 4, str.tostring(foreignData_4) + ": " + str.tostring(math.round(foreignData_4-foreign_close4, 2)), bgcolor =  foreignData_4 > foreign_close4  ?  bullColorInput : bearColorInput, text_color = color.white, text_size=size.small)
+table.cell(panel, 2, 4, str.tostring(math.round(foreign_vwap4,2)), bgcolor =  foreignData_4 > foreign_close4  ?  bullColorInput : bearColorInput, text_size=size.small) 
+
+table.cell(panel, 1, 5, str.tostring(foreignData_5) + ": " + str.tostring(math.round(foreignData_5-foreign_close5, 2)), bgcolor =  foreignData_5 > foreign_close5  ?  bullColorInput : bearColorInput, text_color = color.white, text_size=size.small)
+table.cell(panel, 2, 5, str.tostring(math.round(foreign_vwap5,2)), bgcolor =  foreignData_5 > foreign_close5  ?  bullColorInput : bearColorInput, text_size=size.small) 
+
+table.cell(panel, 1, 6, str.tostring(foreignData_6) + ": " + str.tostring(math.round(foreignData_6-foreign_close6, 2)), bgcolor =  foreignData_6 > foreign_close6  ?  bullColorInput : bearColorInput, text_color = color.white, text_size=size.small)
+table.cell(panel, 2, 6, str.tostring(math.round(foreign_vwap6,2)), bgcolor =  foreignData_6 > foreign_close6  ?  bullColorInput : bearColorInput, text_size=size.small) 
+
+table.cell(panel, 1, 7, str.tostring(foreignData_7) + ": " + str.tostring(math.round(foreignData_7-foreign_close7, 2)), bgcolor =  foreignData_7 > foreign_close7  ?  bullColorInput : bearColorInput, text_color = color.white, text_size=size.small)
+table.cell(panel, 2, 7, str.tostring(math.round(foreign_vwap7,2)), bgcolor =  foreignData_7 > foreign_close7  ?  bullColorInput : bearColorInput, text_size=size.small) 
+
+table.cell(panel, 1, 8, str.tostring(foreignData_8) + ": " + str.tostring(math.round(foreignData_8-foreign_close8, 2)), bgcolor =  foreignData_8 > foreign_close8  ?  bullColorInput : bearColorInput, text_color = color.white, text_size=size.small)
+table.cell(panel, 2, 8, str.tostring(math.round(foreign_vwap8,2)), bgcolor =  foreignData_8 > foreign_close8  ?  bullColorInput : bearColorInput, text_size=size.small) 
+
+table.cell(panel, 1, 9, str.tostring(foreignData_9) + ": " + str.tostring(math.round(foreignData_9-foreign_close9, 2)), bgcolor =  foreignData_9 > foreign_close9  ?  bullColorInput : bearColorInput, text_color = color.white, text_size=size.small)
+table.cell(panel, 2, 9, str.tostring(math.round(foreign_vwap9,2)), bgcolor =  foreignData_9 > foreign_close9  ?  bullColorInput : bearColorInput, text_size=size.small) 
+
+table.cell(panel, 1, 10, str.tostring(foreignData_10) + ": " + str.tostring(math.round(foreignData_10-foreign_close10, 2)), bgcolor =  foreignData_10 > foreign_close10  ?  bullColorInput : bearColorInput, text_color = color.white, text_size=size.small)
+table.cell(panel, 2, 10, str.tostring(math.round(foreign_vwap10,2)), bgcolor =  foreignData_10 > foreign_close10  ?  bullColorInput : bearColorInput, text_size=size.small) 
+
+string  Instrument = syminfo.tickerid
+MappedSymbol = switch Instrument
+    "NSE:NIFTY_MID_SELECT" => "NSE:MIDCPNIFTY1!"
+    "NSE:CNXFINANCE" => "NSE:FINNIFTY1!"
+    => syminfo.tickerid
+
+Derived_VWAP = request.security(MappedSymbol,"",ta.vwap(close))
+plot(Derived_VWAP,title = "Derived Vwap",color = color.blue,linewidth = 2)
+

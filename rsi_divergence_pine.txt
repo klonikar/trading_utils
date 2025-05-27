@@ -1,0 +1,42 @@
+//@version=5
+indicator("RSI Divergence", overlay=false)
+
+// Parameters
+rsiLength = input.int(14, title="RSI Length")
+overbought = input.int(70, title="Overbought Level")
+oversold = input.int(30, title="Oversold Level")
+rsiSource = input(close, title="RSI Source")
+
+// RSI Calculation
+rsi = ta.rsi(rsiSource, rsiLength)
+
+// Find Divergences
+bullishDivergence = ta.lowest(close, 5) < ta.lowest(close[1], 5) and ta.lowest(rsi, 5) > ta.lowest(rsi[1], 5)
+bearishDivergence = ta.highest(close, 5) > ta.highest(close[1], 5) and ta.highest(rsi, 5) < ta.highest(rsi[1], 5)
+
+// Plotting
+plotshape(series=bullishDivergence, title="Bullish Divergence", location=location.bottom, color=color.green, style=shape.labelup, text="▲▲")
+plotshape(series=bearishDivergence, title="Bearish Divergence", location=location.top, color=color.red, style=shape.labeldown, text="▼▼")
+
+// RSI Plot
+hline(overbought, "Overbought", color=color.red)
+hline(oversold, "Oversold", color=color.green)
+plot(rsi, "RSI", color=color.blue)
+
+// Hidden Bullish Divergence
+// Price makes higher low, RSI makes lower low
+priceHL = low > ta.lowest(low[1], 5)
+rsiLL = rsi < ta.lowest(rsi[1], 5)
+hiddenBullishDiv = priceHL and rsiLL
+
+// Hidden Bearish Divergence
+// Price makes lower high, RSI makes higher high
+priceLH = high < ta.highest(high[1], 5)
+rsiHH = rsi > ta.highest(rsi[1], 5)
+hiddenBearishDiv = priceLH and rsiHH
+
+// Plot Hidden Bullish Divergence
+plotshape(series=hiddenBullishDiv, title="Hidden Bullish Divergence", location=location.bottom, color=color.white, style=shape.labelup, text="▲")
+
+// Plot Hidden Bearish Divergence
+plotshape(series=hiddenBearishDiv, title="Hidden Bearish Divergence", location=location.top, color=color.orange, style=shape.labeldown, text="▼")

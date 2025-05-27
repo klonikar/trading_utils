@@ -1,0 +1,67 @@
+//@version=5
+indicator("RSI Divergence", overlay=true)
+
+// Input parameters
+rsiLength = input.int(14, "RSI Length")
+rsiOverbought = input.int(70, "RSI Overbought Level")
+rsiOversold = input.int(30, "RSI Oversold Level")
+lookbackLength = input.int(5, "Divergence Lookback Length")
+
+// Calculate RSI
+rsi = ta.rsi(close, rsiLength)
+
+// Function to detect divergence
+detectDivergence(src, indicator, isLow) =>
+    pivot = isLow ? ta.lowestbars(src, lookbackLength) : ta.highestbars(src, lookbackLength)
+    price_extreme = isLow ? ta.lowest(src, lookbackLength) : ta.highest(src, lookbackLength)
+    indicator_extreme = isLow ? ta.lowest(indicator, lookbackLength) : ta.highest(indicator, lookbackLength)
+    
+    divergence = isLow ? 
+      (src[pivot] < price_extreme and indicator[pivot] > indicator_extreme) or
+      (src[pivot] > price_extreme and indicator[pivot] < indicator_extreme)
+      :
+      (src[pivot] > price_extreme and indicator[pivot] < indicator_extreme) or
+      (src[pivot] < price_extreme and indicator[pivot] > indicator_extreme)
+    
+    [pivot, divergence]
+
+// Detect divergences
+[bullPivot, bullDiv] = detectDivergence(close, rsi, true)
+[bearPivot, bearDiv] = detectDivergence(close, rsi, false)
+
+// Plot divergences
+plotshape(bullDiv, "Bullish Divergence", shape.triangleup, location.belowbar, color.green, size=size.small)
+plotshape(bearDiv, "Bearish Divergence", shape.triangledown, location.abovebar, color.red, size=size.small)
+
+// Plot hidden divergences
+hiddenBullDiv = close[bullPivot] > close and rsi[bullPivot] < rsi and bullDiv
+hiddenBearDiv = close[bearPivot] < close and rsi[bearPivot] > rsi and bearDiv
+
+plotshape(hiddenBullDiv, "Hidden Bullish Divergence", shape.diamond, location.belowbar, color.blue, size=size.small)
+plotshape(hiddenBearDiv, "Hidden Bearish Divergence", shape.diamond, location.abovebar, color.yellow, size=size.small)
+
+// Plot RSI
+rsiPlot = plot(rsi, "RSI", color.new(color.blue, 0), linewidth=2)
+ob = hline(rsiOverbought, "Overbought", color.new(color.red, 50))
+os = hline(rsiOversold, "Oversold", color.new(color.green, 50))
+fill(ob, os, color.rgb(33, 150, 243, 90), "Background")
+
+// Divergence lines
+drawLine(pivot, _offset) =>
+    line.new(bar_index[pivot] - _offset, close[pivot], bar_index - _offset, close, color=color.white, style=line.style_dashed)
+
+if (bullDiv)
+    drawLine(bullPivot, 0)
+    drawLine(bullPivot, lookbackLength)
+
+if (bearDiv)
+    drawLine(bearPivot, 0)
+    drawLine(bearPivot, lookbackLength)
+
+if (hiddenBullDiv)
+    drawLine(bullPivot, 0)
+    drawLine(bullPivot, lookbackLength)
+
+if (hiddenBearDiv)
+    drawLine(bearPivot, 0)
+    drawLine(bearPivot, lookbackLength)

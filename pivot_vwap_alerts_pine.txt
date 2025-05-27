@@ -1,0 +1,306 @@
+//@version=6
+indicator("Pivot Points with VWAP & Alerts", overlay=true)
+
+// Inputs for timeframes
+darkMode = input.bool(true, title = "Dark Mode", group = "Theme")
+canShowDaily = timeframe.in_seconds() < 3600 // show daily indicators only for TF upto hourly
+canShowWeeklyMonthly = timeframe.in_seconds() >= 3600 // show weekly/monthly indicators only for TF upto hourly
+
+showDaily = input.bool(true, title="Show Daily Levels") and canShowDaily
+showWeekly = input.bool(true, title="Show Weekly Levels") and canShowWeeklyMonthly
+showMonthly = input.bool(true, title="Show Monthly Levels") and canShowWeeklyMonthly
+showVWAP = input.bool(true, title="Show VWAP")
+showPrevHighLow = input.bool(true, title="Show Previous Day High/Low")
+showTomorrowLevels = input.bool(false, "Show Tomorrow Levels")
+showEMAs = input.bool(false, "Show EMAs")
+
+// Today's Session Start timestamp
+y = year(timenow)
+m = month(timenow)
+d = dayofmonth(timenow)
+
+// Start & End time for Today's CPR
+start = timestamp(y, m, d, 09, 15)
+end = start + 86400000
+
+tomorrowStart = end
+tomorrowEnd = tomorrowStart + 86400000
+
+cprColor = color.purple
+cprColor_w = color.yellow
+cprColor_m = color.aqua
+rColor = color.red
+sColor = color.green
+rColor_w = color.orange
+sColor_w = color.rgb(215, 230, 0)
+rColor_m = color.rgb(136, 14, 57)
+sColor_m = color.rgb(21, 236, 53)
+cColor = darkMode ? color.white : color.black
+vwapColor = color.blue
+ema20Color = color.green
+ema50Color = color.yellow
+ema200Color = color.red
+
+plotInfoDisplayLocation = display.all - display.status_line
+
+// Line style & Transparency
+lStyle = plot.style_line
+lTransp = 35
+
+//Fill Transparency
+fTransp = 70
+
+// Get series
+getSeries(timeFrame) =>
+    request.security(syminfo.tickerid, timeFrame, [high[1], low[1], close[1]], lookahead = barmerge.lookahead_on)
+
+// Function to calculate pivot levels
+calcLevels(high, low, close) =>
+    pivot = (high + low + close) / 3
+    BC = (high + low) / 2
+    TC = pivot - BC + pivot
+    r1 = 2 * pivot - low
+    s1 = 2 * pivot - high
+    r2 = pivot + (high - low)
+    s2 = pivot - (high - low)
+    r3 = high + 2 * (pivot - low)
+    s3 = low - 2 * (high - pivot)
+    //r4 = high + 3 * (pivot - low)
+    //s4 = low - 3 * (high - pivot)
+    r4 = r3 + r2 - r1
+    s4 = s3 + s2 - s1
+    [pivot, BC, TC, r1, s1, r2, s2, r3, s3, r4, s4]
+
+drawHorizontalLine(x1, x2, y, clr, draw) =>
+    if(draw)
+        l = line.new(x1, y, x2, y, xloc.bar_time, color = clr)
+        line.delete(l[1])
+
+drawLabel(x, y, txt, clr, draw=true) =>
+    if draw
+        l = label.new(x, y, text = txt, xloc = xloc.bar_time, textcolor = clr, style = label.style_none)
+        label.delete(l[1])
+        drawHorizontalLine(x, x+86400000, y, clr, draw)
+
+calculateLongShortConditions(level) =>
+    // Store individual crossover results in variables
+    highCrossOver = ta.crossover(high, level)
+    closeCrossOver = ta.crossover(close, level)
+    openCrossOver = ta.crossover(open, level)
+    lowCrossOver = ta.crossover(low, level)
+
+    highCrossUnder = ta.crossunder(high, level)
+    closeCrossUnder = ta.crossunder(close, level)
+    openCrossUnder = ta.crossunder(open, level)
+    lowCrossUnder = ta.crossunder(low, level)
+
+    // Combine variables to build the final long and short conditions
+    longCondition = highCrossOver or closeCrossOver or openCrossOver or lowCrossOver
+    shortCondition = highCrossUnder or closeCrossUnder or openCrossUnder or lowCrossUnder
+    [longCondition, shortCondition]
+
+// Function to raise alerts
+raiseAlert(level, label) =>
+    [enterLong, enterShort] = calculateLongShortConditions(level)
+    if enterLong
+        alert("Price crossed above "  + str.tostring(level, "0.#") + ": " + label, alert.freq_once_per_bar)
+    else if enterShort
+        alert("Price crossed below "  + str.tostring(level, "0.#") + ": " + label, alert.freq_once_per_bar)
+    //else 
+    //    log.info("No alert for now...")
+    [enterLong, enterShort]
+
+// Daily Levels
+//Get High, Low and Close
+[H_d, L_d, C_d] = getSeries('D')
+[dailyPivot, BC_d, TC_d, dailyR1, dailyS1, dailyR2, dailyS2, dailyR3, dailyS3, dailyR4, dailyS4] = calcLevels(H_d, L_d, C_d)
+
+// Weekly Levels
+[H_w, L_w, C_w] = getSeries('W')
+[weeklyPivot, BC_w, TC_w, weeklyR1, weeklyS1, weeklyR2, weeklyS2, weeklyR3, weeklyS3, weeklyR4, weeklyS4] = calcLevels(H_w, L_w, C_w)
+
+// Monthly Levels
+[H_m, L_m, C_m] = getSeries('M')
+[monthlyPivot, BC_m, TC_m, monthlyR1, monthlyS1, monthlyR2, monthlyS2, monthlyR3, monthlyS3, monthlyR4, monthlyS4] = calcLevels(H_m, L_m, C_m)
+
+// Tomorrow's levels
+[H_dt, L_dt, C_dt] = request.security(syminfo.tickerid, 'D', [high, low, close], lookahead = barmerge.lookahead_on)
+[dailyPivot_t, BC_dt, TC_dt, dailyR1_t, dailyS1_t, dailyR2_t, dailyS2_t, dailyR3_t, dailyS3_t, dailyR4_t, dailyS4_t] = calcLevels(H_dt, L_dt, C_dt)
+
+// Previous Day High and Low
+prevDayHigh = H_d
+prevDayLow = L_d
+prevWeekHigh = H_w
+prevWeekLow = L_w
+prevMonthHigh = H_m
+prevMonthLow = L_m
+
+// VWAP
+vwap = ta.vwap(close)
+plot(showVWAP ? vwap : na, title="VWAP", color=vwapColor, linewidth=2)
+drawLabel(start, vwap, 'VWAP', vwapColor, showVWAP)
+
+// EMAs
+ema20 = ta.ema(C_dt, 20)
+ema50 = ta.ema(C_dt, 50)
+ema200 = ta.ema(C_dt, 200)
+plot(showEMAs ? ema20 : na, title="EMA 20", color=ema20Color, linewidth = 1, style=plot.style_linebr, display=plotInfoDisplayLocation)
+plot(showEMAs ? ema50 : na, title="EMA 50", color=ema50Color, linewidth = 1, style=plot.style_linebr, display=plotInfoDisplayLocation)
+plot(showEMAs ? ema200 : na, title="EMA 200", color=ema200Color, linewidth = 1, style=plot.style_linebr, display=plotInfoDisplayLocation)
+
+drawLabel(start, ema20, 'EMA 20', ema20Color, showEMAs)
+drawLabel(start, ema50, 'EMA 50', ema50Color, showEMAs)
+drawLabel(start, ema200, 'EMA 200', ema200Color, showEMAs)
+
+// Plotting Previous Day High/Low
+plot(showPrevHighLow and showDaily ? prevDayHigh : na, title="Previous Day High", color=rColor, linewidth=1, style=plot.style_line, display=plotInfoDisplayLocation)
+plot(showPrevHighLow and showDaily ? prevDayLow : na, title="Previous Day Low", color=sColor, linewidth=1, style=plot.style_line, display=plotInfoDisplayLocation)
+drawLabel(start, prevDayHigh, 'PD High', rColor, showPrevHighLow and showDaily)
+drawLabel(start, prevDayLow, 'PD Low', sColor, showPrevHighLow and showDaily)
+
+plot(showPrevHighLow and showWeekly ? prevWeekHigh : na, title="Previous Week High", color=rColor, linewidth=1, style=plot.style_line, display=plotInfoDisplayLocation)
+plot(showPrevHighLow and showWeekly ? prevWeekLow : na, title="Previous Week Low", color=sColor, linewidth=1, style=plot.style_line, display=plotInfoDisplayLocation)
+drawLabel(start, prevWeekHigh, 'PW High', rColor, showPrevHighLow and showWeekly)
+drawLabel(start, prevWeekLow, 'PW Low', sColor, showPrevHighLow and showWeekly)
+
+plot(showPrevHighLow and showMonthly ? prevMonthHigh : na, title="Previous Month High", color=rColor, linewidth=1, style=plot.style_line, display=plotInfoDisplayLocation)
+plot(showPrevHighLow and showMonthly ? prevMonthLow : na, title="Previous Month Low", color=sColor, linewidth=1, style=plot.style_line, display=plotInfoDisplayLocation)
+drawLabel(start, prevMonthHigh, 'PM High', rColor, showPrevHighLow and showMonthly)
+drawLabel(start, prevMonthLow, 'PM Low', sColor, showPrevHighLow and showMonthly)
+
+// Plotting Levels
+p_pivot = plot(showDaily ? dailyPivot : na, title="Daily Pivot", color=cprColor, linewidth=2)
+p_cprBC = plot(showDaily ? BC_d : na, title="Daily BC", color=cprColor, linewidth=2)
+p_cprTC = plot(showDaily ? TC_d : na, title="Daily TC", color=cprColor, linewidth=2)
+fill(p_cprTC, p_cprBC, color = color.new(cprColor, fTransp))
+drawLabel(start, dailyPivot, 'Pivot', cprColor, showDaily)
+drawLabel(start, BC_d, 'BC D', cprColor, showDaily)
+drawLabel(start, TC_d, 'TC D', cprColor, showDaily)
+
+plot(showDaily ? dailyR1 : na, title="Daily R1", color=rColor, linewidth=1, display=plotInfoDisplayLocation)
+plot(showDaily ? dailyS1 : na, title="Daily S1", color=sColor, linewidth=1, display=plotInfoDisplayLocation)
+plot(showDaily ? dailyR2 : na, title="Daily R2", color=rColor, linewidth=1, display=plotInfoDisplayLocation)
+plot(showDaily ? dailyS2 : na, title="Daily S2", color=sColor, linewidth=1, display=plotInfoDisplayLocation)
+plot(showDaily ? dailyR3 : na, title="Daily R3", color=rColor, linewidth=1, display=plotInfoDisplayLocation)
+plot(showDaily ? dailyS3 : na, title="Daily S3", color=sColor, linewidth=1, display=plotInfoDisplayLocation)
+plot(showDaily ? dailyR4 : na, title="Daily R4", color=rColor, linewidth=1, display=plotInfoDisplayLocation)
+plot(showDaily ? dailyS4 : na, title="Daily S4", color=sColor, linewidth=1, display=plotInfoDisplayLocation)
+plot(showDaily ? C_d : na, title="Daily Close", color=cColor, linewidth=1, display=plotInfoDisplayLocation)
+
+drawLabel(start, dailyR1, 'R1 Daily', rColor, showDaily)
+drawLabel(start, dailyS1, 'S1 Daily', sColor, showDaily)
+drawLabel(start, dailyR2, 'R2 Daily', rColor, showDaily)
+drawLabel(start, dailyS2, 'S2 Daily', sColor, showDaily)
+drawLabel(start, dailyR3, 'R3 Daily', rColor, showDaily)
+drawLabel(start, dailyS3, 'S3 Daily', sColor, showDaily)
+drawLabel(start, dailyR4, 'R4 Daily', rColor, showDaily)
+drawLabel(start, dailyS4, 'S4 Daily', sColor, showDaily)
+drawLabel(start, C_d, 'Daily Close', cColor, showDaily)
+
+// Draw tomorrow's levels
+drawLabel(tomorrowStart, H_dt, "PD High", rColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, L_dt, "PD Low", sColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, dailyPivot_t, "Pivot", cprColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, BC_dt, "BC", cprColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, TC_dt, "TC", cprColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, dailyR1_t, "R1", rColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, dailyR2_t, "R2", rColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, dailyR3_t, "R3", rColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, dailyR4_t, "R4", rColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, dailyS1_t, "S1", sColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, dailyS2_t, "S2", sColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, dailyS3_t, "S3", sColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, dailyS4_t, "S4", sColor, showTomorrowLevels and showDaily)
+
+
+p_pivot_w = plot(showWeekly ? weeklyPivot : na, title="Weekly Pivot", color=cprColor_w, linewidth=2)
+p_cprBC_w = plot(showWeekly ? BC_w : na, title="Weekly BC", color=cprColor_w, linewidth=2)
+p_cprTC_w = plot(showWeekly ? TC_w : na, title="Weekly TC", color=cprColor_w, linewidth=2)
+fill(p_cprTC_w, p_cprBC_w, color = color.new(cprColor_w, fTransp))
+drawLabel(start, weeklyPivot, 'Pivot W', cprColor_w, showWeekly)
+drawLabel(start, BC_w, 'BC W', cprColor_w, showWeekly)
+drawLabel(start, TC_w, 'TC W', cprColor_w, showWeekly)
+
+plot(showWeekly ? weeklyR1 : na, title="Weekly R1", color=rColor_w, style=plot.style_stepline_diamond, display=plotInfoDisplayLocation)
+plot(showWeekly ? weeklyR2 : na, title="Weekly R2", color=rColor_w, style=plot.style_stepline_diamond, display=plotInfoDisplayLocation)
+plot(showWeekly ? weeklyR3 : na, title="Weekly R3", color=rColor_w, style=plot.style_stepline_diamond, display=plotInfoDisplayLocation)
+plot(showWeekly ? weeklyR4 : na, title="Weekly R4", color=rColor_w, style=plot.style_stepline_diamond, display=plotInfoDisplayLocation)
+plot(showWeekly ? weeklyS1 : na, title="Weekly S1", color=sColor_w, style=plot.style_stepline_diamond, display=plotInfoDisplayLocation)
+plot(showWeekly ? weeklyS2 : na, title="Weekly S2", color=sColor_w, style=plot.style_stepline_diamond, display=plotInfoDisplayLocation)
+plot(showWeekly ? weeklyS3 : na, title="Weekly S3", color=sColor_w, style=plot.style_stepline_diamond, display=plotInfoDisplayLocation)
+plot(showWeekly ? weeklyS4 : na, title="Weekly S4", color=sColor_w, style=plot.style_stepline_diamond, display=plotInfoDisplayLocation)
+plot(showWeekly ? C_w : na, title="Weekly Close", color=cColor, linewidth=1, display=plotInfoDisplayLocation)
+
+drawLabel(start, weeklyR1, 'R1 Weekly', rColor_w, showWeekly)
+drawLabel(start, weeklyR2, 'R2 Weekly', rColor_w, showWeekly)
+drawLabel(start, weeklyR3, 'R3 Weekly', rColor_w, showWeekly)
+drawLabel(start, weeklyR4, 'R4 Weekly', rColor_w, showWeekly)
+drawLabel(start, weeklyS1, 'S1 Weekly', sColor_w, showWeekly)
+drawLabel(start, weeklyS2, 'S2 Weekly', sColor_w, showWeekly)
+drawLabel(start, weeklyS3, 'S3 Weekly', sColor_w, showWeekly)
+drawLabel(start, weeklyS4, 'S4 Weekly', sColor_w, showWeekly)
+drawLabel(start, C_w, 'Weekly Close', cColor, showWeekly)
+
+p_pivot_m = plot(showMonthly ? monthlyPivot : na, title="Monthly Pivot", color=cprColor_m, linewidth=1)
+p_cprBC_m = plot(showMonthly ? BC_m : na, title="Monthly BC", color=cprColor_m, linewidth=1)
+p_cprTC_m = plot(showMonthly ? TC_m : na, title="Monthly TC", color=cprColor_m, linewidth=1)
+fill(p_cprTC_m, p_cprBC_m, color = color.new(cprColor_m, fTransp))
+drawLabel(start, monthlyPivot, 'Pivot M', cprColor_m, showMonthly)
+drawLabel(start, BC_m, 'BC M', cprColor_m, showMonthly)
+drawLabel(start, TC_m, 'TC M', cprColor_m, showMonthly)
+
+plot(showMonthly ? monthlyR1 : na, title="Monthly R1", color=rColor_m, style=plot.style_linebr, display=plotInfoDisplayLocation)
+plot(showMonthly ? monthlyR2 : na, title="Monthly R2", color=rColor_m, style=plot.style_linebr, display=plotInfoDisplayLocation)
+plot(showMonthly ? monthlyR3 : na, title="Monthly R3", color=rColor_m, style=plot.style_linebr, display=plotInfoDisplayLocation)
+plot(showMonthly ? monthlyR4 : na, title="Monthly R4", color=rColor_m, style=plot.style_linebr, display=plotInfoDisplayLocation)
+plot(showMonthly ? monthlyS1 : na, title="Monthly S1", color=sColor_m, style=plot.style_linebr, display=plotInfoDisplayLocation)
+plot(showMonthly ? monthlyS2 : na, title="Monthly S2", color=sColor_m, style=plot.style_linebr, display=plotInfoDisplayLocation)
+plot(showMonthly ? monthlyS3 : na, title="Monthly S3", color=sColor_m, style=plot.style_linebr, display=plotInfoDisplayLocation)
+plot(showMonthly ? monthlyS4 : na, title="Monthly S4", color=sColor_m, style=plot.style_linebr, display=plotInfoDisplayLocation)
+plot(showMonthly ? C_m : na, title="Monthly Close", color=cColor, linewidth=1, display=plotInfoDisplayLocation)
+
+drawLabel(start, monthlyR1, 'R1 monthly', rColor_m, showMonthly)
+drawLabel(start, monthlyR2, 'R2 monthly', rColor_m, showMonthly)
+drawLabel(start, monthlyR3, 'R3 monthly', rColor_m, showMonthly)
+drawLabel(start, monthlyR4, 'R4 monthly', rColor_m, showMonthly)
+drawLabel(start, monthlyS1, 'S1 Monthly', sColor_m, showMonthly)
+drawLabel(start, monthlyS2, 'S2 Monthly', sColor_m, showMonthly)
+drawLabel(start, monthlyS3, 'S3 Monthly', sColor_m, showMonthly)
+drawLabel(start, monthlyS4, 'S4 Monthly', sColor_m, showMonthly)
+drawLabel(start, C_m, 'Monthly Close', cColor, showMonthly)
+
+// Alerts for Daily Levels
+[pdhighCrossover, pdhighCrossUnder] = raiseAlert(prevDayHigh, "Prev Day High")
+[pdlowCrossover, pdlowCrossUnder] = raiseAlert(prevDayLow, "Prev Day Low")
+[vwapCrossover, vwapCrossUnder] = raiseAlert(vwap, "VWAP")
+
+[pivotCrossover, pivotCrossUnder] = raiseAlert(dailyPivot, "Daily Pivot")
+[r1Crossover, r1CrossUnder] = raiseAlert(dailyR1, "Daily R1")
+[s1Crossover,s1CrossUnder] = raiseAlert(dailyS1, "Daily S1")
+[r2Crossover,r2CrossUnder] =  raiseAlert(dailyR2, "Daily R2")
+[s2Crossover,s2CrossUnder] = raiseAlert(dailyS2, "Daily S2")
+[r3Crossover,r3CrossUnder] = raiseAlert(dailyR3, "Daily R3")
+[s3Crossover,s3CrossUnder] = raiseAlert(dailyS3, "Daily S3")
+[r4Crossover,r4CrossUnder] = raiseAlert(dailyR4, "Daily R4")
+[s4Crossover,s4CrossUnder] = raiseAlert(dailyS4, "Daily S4")
+
+// Alerts for Weekly Levels
+[weeklyPivotCrossover,weeklyPivotCrossUnder] = raiseAlert(weeklyPivot, "Weekly Pivot")
+[weeklyR1Crossover,weeklyR1CrossUnder] = raiseAlert(weeklyR1, "Weekly R1")
+[weeklyS1Crossover,weeklyS1CrossUnder] = raiseAlert(weeklyS1, "Weekly S1")
+[weeklyR2Crossover,weeklyR2CrossUnder] = raiseAlert(weeklyR2, "Weekly R2")
+[weeklyS2Crossover,weeklyS2CrossUnder] = raiseAlert(weeklyS2, "Weekly S2")
+
+// Alerts for Monthly Levels
+[monthlyPivotCrossover,monthlyPivotCrossUnder] = raiseAlert(monthlyPivot, "Monthly Pivot")
+[monthlyR1Crossover,monthlyR1CrossUnder] = raiseAlert(monthlyR1, "Monthly R1")
+[monthlyS1Crossover,monthlyS1CrossUnder] = raiseAlert(monthlyS1, "Monthly S1")
+[monthlyR2Crossover,monthlyR2CrossUnder] = raiseAlert(monthlyR2, "Monthly R2")
+[monthlyS2Crossover,monthlyS2CrossUnder] = raiseAlert(monthlyS2, "Monthly S2")
+
+enterLong = pdhighCrossover or pdlowCrossover or vwapCrossover or pivotCrossover or r1Crossover or r2Crossover or r3Crossover or r4Crossover or s1Crossover or s2Crossover or s3Crossover or s4Crossover or weeklyR1Crossover or weeklyS1Crossover or weeklyR2Crossover or weeklyS2Crossover or weeklyPivotCrossover
+
+enterShort = pdhighCrossUnder or pdlowCrossUnder or vwapCrossUnder or pivotCrossUnder or r1CrossUnder or r2CrossUnder or r3CrossUnder or r4CrossUnder or s1CrossUnder or s2CrossUnder or s3CrossUnder or s4CrossUnder or weeklyR1CrossUnder or weeklyS1CrossUnder or weeklyR2CrossUnder or weeklyS2CrossUnder or weeklyPivotCrossUnder
+
+plotchar(enterLong,  "Go Long",  "▲", location.belowbar, color.lime, size = size.tiny)
+plotchar(enterShort, "Go Short", "▼", location.abovebar,    color.red,  size = size.tiny)

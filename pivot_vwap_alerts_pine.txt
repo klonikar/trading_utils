@@ -4,11 +4,12 @@ indicator("Pivot Points with VWAP & Alerts", overlay=true)
 // Inputs for timeframes
 darkMode = input.bool(true, title = "Dark Mode", group = "Theme")
 canShowDaily = timeframe.in_seconds() < 3600 // show daily indicators only for TF upto hourly
-canShowWeeklyMonthly = timeframe.in_seconds() >= 3600 // show weekly/monthly indicators only for TF upto hourly
+canShowMonthly = timeframe.in_seconds() > 3600 and timeframe.in_seconds() < 3600*24*7 // show monthly indicators only for TF beyond hourly
+canShowWeekly = timeframe.in_seconds() == 3600 // shiw weekly indicators only for hourly TF
 
 showDaily = input.bool(true, title="Show Daily Levels") and canShowDaily
-showWeekly = input.bool(true, title="Show Weekly Levels") and canShowWeeklyMonthly
-showMonthly = input.bool(true, title="Show Monthly Levels") and canShowWeeklyMonthly
+showWeekly = input.bool(true, title="Show Weekly Levels") and canShowWeekly
+showMonthly = input.bool(true, title="Show Monthly Levels") and canShowMonthly
 showVWAP = input.bool(true, title="Show VWAP")
 showPrevHighLow = input.bool(true, title="Show Previous Day High/Low")
 showTomorrowLevels = input.bool(false, "Show Tomorrow Levels")

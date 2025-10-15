@@ -56,18 +56,18 @@ getSeries(timeFrame) =>
     request.security(syminfo.tickerid, timeFrame, [high[1], low[1], close[1]], lookahead = barmerge.lookahead_on)
 
 // Function to calculate pivot levels
-calcLevels(high, low, close) =>
-    pivot = (high + low + close) / 3
-    BC = (high + low) / 2
+calcLevels(high1, low1, close1) =>
+    pivot = (high1 + low1 + close1) / 3
+    BC = (high1 + low1) / 2
     TC = pivot - BC + pivot
-    r1 = 2 * pivot - low
-    s1 = 2 * pivot - high
-    r2 = pivot + (high - low)
-    s2 = pivot - (high - low)
-    r3 = high + 2 * (pivot - low)
-    s3 = low - 2 * (high - pivot)
-    //r4 = high + 3 * (pivot - low)
-    //s4 = low - 3 * (high - pivot)
+    r1 = 2 * pivot - low1
+    s1 = 2 * pivot - high1
+    r2 = pivot + (high1 - low1)
+    s2 = pivot - (high1 - low1)
+    r3 = high1 + 2 * (pivot - low1)
+    s3 = low1 - 2 * (high1 - pivot)
+    //r4 = high1 + 3 * (pivot - low1)
+    //s4 = low1 - 3 * (high1 - pivot)
     r4 = r3 + r2 - r1
     s4 = s3 + s2 - s1
     [pivot, BC, TC, r1, s1, r2, s2, r3, s3, r4, s4]
@@ -111,6 +111,30 @@ raiseAlert(level, label) =>
     //    log.info("No alert for now...")
     [enterLong, enterShort]
 
+// --- Find the next higher timeframe automatically ---
+// This function returns the next highest timeframe string from a predefined list.
+f_getHigherTimeframe(current_tf) =>
+    higher_tf = ""
+    // Pre-defined ordered list of common timeframes.
+    var timeframes = array.from("1", "3", "5", "15", "30", "60", "120", "180", "240", "D", "W", "M")
+    
+    // Find the index of the current timeframe in the list.
+    index = array.indexof(timeframes, current_tf)
+    
+    // If the current timeframe is found and is not the last in the list,
+    // get the next one.
+    if index != -1 and index < array.size(timeframes) - 1
+        higher_tf := array.get(timeframes, index + 1)
+        
+    higher_tf
+
+// --- Main script logic ---
+// Get the current chart timeframe using the built-in variable.
+current_tf = timeframe.period
+
+// Get the next highest timeframe string.
+next_higher_tf = f_getHigherTimeframe(current_tf)
+
 // Daily Levels
 //Get High, Low and Close
 [H_d, L_d, C_d] = getSeries('D')
@@ -137,7 +161,8 @@ prevMonthHigh = H_m
 prevMonthLow = L_m
 
 // VWAP
-vwap = ta.vwap(close)
+vwap_basis = request.security(syminfo.tickerid, next_higher_tf, close[1], lookahead = barmerge.lookahead_on)
+vwap = ta.vwap(vwap_basis)
 plot(showVWAP ? vwap : na, title="VWAP", color=vwapColor, linewidth=2)
 drawLabel(start, vwap, 'VWAP', vwapColor, showVWAP)
 

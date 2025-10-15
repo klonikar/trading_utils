@@ -1,86 +1,19 @@
-// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
-// Â© For any Queries reachout to me at 
-//https://t.me/ChitraPrabuKrishnan
-//https://www.youtube.com/channel/UCnEcTfUdZlg5rWCCloLsS9A
+//@version=6
+indicator("Pivot Points with VWAP & Alerts", overlay=true)
 
+// Inputs for timeframes
+darkMode = input.bool(true, title = "Dark Mode", group = "Theme")
+canShowDaily = timeframe.in_seconds() < 3600 // show daily indicators only for TF upto hourly
+canShowMonthly = timeframe.in_seconds() > 3600 and timeframe.in_seconds() < 3600*24*7 // show monthly indicators only for TF beyond hourly
+canShowWeekly = timeframe.in_seconds() == 3600 // shiw weekly indicators only for hourly TF
 
-//@version=4
-study("CPR -TraderChitra", shorttitle="CPR-TraderChitra", overlay=true)
-
-// User inputs
-showTomorrowCPR = input(title="Show tomorrow's CPR", type=input.bool, defval=true)
-showHistoricalCPR = input(title="Show historical CPR", type=input.bool, defval=false)
-showR3S3 = input(title="Show R3/S3 & R4/S4", type=input.bool, defval=true)
-showPDHL = input(title="Show previous day's High & Low", type=input.bool, defval=false)
-showPDC = input(title="Show previous day's Close", type=input.bool, defval=false)
-showVWAP = input(title="Plot VWAP", type=input.bool, defval=false)
-
-
-
-
-// Defaults
-// CPR Colors
-cprColor = color.purple
-rColor = color.red
-sColor = color.green
-cColor = color.black
-
-// Line style & Transparency
-lStyle = plot.style_line
-lTransp = 35
-
-//Fill Transparency
-fTransp = 95
-
-
-// Global Variables & Flags
-// TODO : Update the No of Holidays
-noOfHolidays = 12
-
-
-// Global Functions
-// TODO : Update the list of Holiday here in format YYYY, MM, DD, 09, 15 
-// **09, 15 are session start hour & minutes
-IsHoliday(_date) =>
-    iff(_date == timestamp(2020, 02, 21, 09, 15), true, 
-         iff(_date == timestamp(2020, 03, 10, 09, 15), true, 
-         iff(_date == timestamp(2020, 04, 02, 09, 15), true, 
-         iff(_date == timestamp(2020, 04, 06, 09, 15), true, 
-         iff(_date == timestamp(2020, 04, 10, 09, 15), true, 
-         iff(_date == timestamp(2020, 04, 14, 09, 15), true,
-         iff(_date == timestamp(2020, 05, 01, 09, 15), true, 
-         iff(_date == timestamp(2020, 05, 25, 09, 15), true, 
-         iff(_date == timestamp(2020, 10, 02, 09, 15), true, 
-         iff(_date == timestamp(2020, 11, 16, 09, 15), true, 
-         iff(_date == timestamp(2020, 11, 30, 09, 15), true, 
-         iff(_date == timestamp(2020, 12, 25, 09, 15), true, 
-         false))))))))))))
-
-// Note: Week of Sunday=1...Saturday=7
-IsWeekend(_date) =>
-    dayofweek(_date) == 7 or dayofweek(_date) == 1
-
-// Skip Weekend
-SkipWeekend(_date) =>
-    _d = dayofweek(_date)
-    _mul = _d == 6 ? 3 : _d == 7 ? 2 : 1
-    
-    _date + (_mul * 86400000)
-
-
-// Get Next Working Day
-GetNextWorkingDay(_date) =>
-    _dt = SkipWeekend(_date)
-    
-    for i = 1 to noOfHolidays
-        if IsHoliday(_dt)
-            _dt := SkipWeekend(_dt)
-            continue
-        else
-            break
-    
-    _dt
-
+showDaily = input.bool(true, title="Show Daily Levels") and canShowDaily
+showWeekly = input.bool(true, title="Show Weekly Levels") and canShowWeekly
+showMonthly = input.bool(true, title="Show Monthly Levels") and canShowMonthly
+showVWAP = input.bool(true, title="Show VWAP")
+showPrevHighLow = input.bool(true, title="Show Previous Day High/Low")
+showTomorrowLevels = input.bool(false, "Show Tomorrow Levels")
+showEMAs = input.bool(false, "Show EMAs")
 
 // Today's Session Start timestamp
 y = year(timenow)
@@ -91,262 +24,309 @@ d = dayofmonth(timenow)
 start = timestamp(y, m, d, 09, 15)
 end = start + 86400000
 
-// Plot Today's CPR
-shouldPlotToday = timenow > start
+tomorrowStart = end
+tomorrowEnd = tomorrowStart + 86400000
 
-tom_start = start
-tom_end = end
+cprColor = color.purple
+cprColor_w = color.yellow
+cprColor_m = color.aqua
+rColor = color.red
+sColor = color.green
+rColor_w = color.orange
+sColor_w = color.rgb(215, 230, 0)
+rColor_m = color.rgb(136, 14, 57)
+sColor_m = color.rgb(21, 236, 53)
+cColor = darkMode ? color.white : color.black
+vwapColor = color.blue
+ema20Color = color.green
+ema50Color = color.yellow
+ema200Color = color.red
 
-// Start & End time for Tomorrow's CPR
-if shouldPlotToday
-    tom_start := GetNextWorkingDay(start)
-    tom_end := tom_start + 86400000
+plotInfoDisplayLocation = display.all - display.status_line
 
+// Line style & Transparency
+lStyle = plot.style_line
+lTransp = 35
+
+//Fill Transparency
+fTransp = 70
 
 // Get series
-getSeries(e, timeFrame) => security(syminfo.tickerid, "D", e, lookahead=barmerge.lookahead_on) 
+getSeries(timeFrame) =>
+    request.security(syminfo.tickerid, timeFrame, [high[1], low[1], close[1]], lookahead = barmerge.lookahead_on)
 
-// Calculate Today's CPR
+// Function to calculate pivot levels
+calcLevels(high1, low1, close1) =>
+    pivot = (high1 + low1 + close1) / 3
+    BC = (high1 + low1) / 2
+    TC = pivot - BC + pivot
+    r1 = 2 * pivot - low1
+    s1 = 2 * pivot - high1
+    r2 = pivot + (high1 - low1)
+    s2 = pivot - (high1 - low1)
+    r3 = high1 + 2 * (pivot - low1)
+    s3 = low1 - 2 * (high1 - pivot)
+    //r4 = high1 + 3 * (pivot - low1)
+    //s4 = low1 - 3 * (high1 - pivot)
+    r4 = r3 + r2 - r1
+    s4 = s3 + s2 - s1
+    [pivot, BC, TC, r1, s1, r2, s2, r3, s3, r4, s4]
+
+drawHorizontalLine(x1, x2, y, clr, draw) =>
+    if(draw)
+        l = line.new(x1, y, x2, y, xloc.bar_time, color = clr)
+        line.delete(l[1])
+
+drawLabel(x, y, txt, clr, draw=true) =>
+    if draw
+        l = label.new(x, y, text = txt, xloc = xloc.bar_time, textcolor = clr, style = label.style_none)
+        label.delete(l[1])
+        drawHorizontalLine(x, x+86400000, y, clr, draw)
+
+calculateLongShortConditions(level) =>
+    // Store individual crossover results in variables
+    highCrossOver = ta.crossover(high, level)
+    closeCrossOver = ta.crossover(close, level)
+    openCrossOver = ta.crossover(open, level)
+    lowCrossOver = ta.crossover(low, level)
+
+    highCrossUnder = ta.crossunder(high, level)
+    closeCrossUnder = ta.crossunder(close, level)
+    openCrossUnder = ta.crossunder(open, level)
+    lowCrossUnder = ta.crossunder(low, level)
+
+    // Combine variables to build the final long and short conditions
+    longCondition = highCrossOver or closeCrossOver or openCrossOver or lowCrossOver
+    shortCondition = highCrossUnder or closeCrossUnder or openCrossUnder or lowCrossUnder
+    [longCondition, shortCondition]
+
+// Function to raise alerts
+raiseAlert(level, label) =>
+    [enterLong, enterShort] = calculateLongShortConditions(level)
+    if enterLong
+        alert("Price crossed above "  + str.tostring(level, "0.#") + ": " + label, alert.freq_once_per_bar)
+    else if enterShort
+        alert("Price crossed below "  + str.tostring(level, "0.#") + ": " + label, alert.freq_once_per_bar)
+    //else 
+    //    log.info("No alert for now...")
+    [enterLong, enterShort]
+
+// --- Find the next higher timeframe automatically ---
+// This function returns the next highest timeframe string from a predefined list.
+f_getHigherTimeframe(current_tf) =>
+    higher_tf = ""
+    // Pre-defined ordered list of common timeframes.
+    var timeframes = array.from("1", "3", "5", "15", "30", "60", "120", "180", "240", "D", "W", "M")
+    
+    // Find the index of the current timeframe in the list.
+    index = array.indexof(timeframes, current_tf)
+    
+    // If the current timeframe is found and is not the last in the list,
+    // get the next one.
+    if index != -1 and index < array.size(timeframes) - 1
+        higher_tf := array.get(timeframes, index + 1)
+        
+    higher_tf
+
+// --- Main script logic ---
+// Get the current chart timeframe using the built-in variable.
+current_tf = timeframe.period
+
+// Get the next highest timeframe string.
+next_higher_tf = f_getHigherTimeframe(current_tf)
+
+// Daily Levels
 //Get High, Low and Close
-H = getSeries(high[1], 'D')
-L = getSeries(low[1], 'D')
-C = getSeries(close[1], 'D')
+[H_d, L_d, C_d] = getSeries('D')
+[dailyPivot, BC_d, TC_d, dailyR1, dailyS1, dailyR2, dailyS2, dailyR3, dailyS3, dailyR4, dailyS4] = calcLevels(H_d, L_d, C_d)
+
+// Weekly Levels
+[H_w, L_w, C_w] = getSeries('W')
+[weeklyPivot, BC_w, TC_w, weeklyR1, weeklyS1, weeklyR2, weeklyS2, weeklyR3, weeklyS3, weeklyR4, weeklyS4] = calcLevels(H_w, L_w, C_w)
+
+// Monthly Levels
+[H_m, L_m, C_m] = getSeries('M')
+[monthlyPivot, BC_m, TC_m, monthlyR1, monthlyS1, monthlyR2, monthlyS2, monthlyR3, monthlyS3, monthlyR4, monthlyS4] = calcLevels(H_m, L_m, C_m)
+
+// Tomorrow's levels
+[H_dt, L_dt, C_dt] = request.security(syminfo.tickerid, 'D', [high, low, close], lookahead = barmerge.lookahead_on)
+[dailyPivot_t, BC_dt, TC_dt, dailyR1_t, dailyS1_t, dailyR2_t, dailyS2_t, dailyR3_t, dailyS3_t, dailyR4_t, dailyS4_t] = calcLevels(H_dt, L_dt, C_dt)
+
+// Previous Day High and Low
+prevDayHigh = H_d
+prevDayLow = L_d
+prevWeekHigh = H_w
+prevWeekLow = L_w
+prevMonthHigh = H_m
+prevMonthLow = L_m
+
+// VWAP
+vwap_basis = request.security(syminfo.tickerid, next_higher_tf, close[1], lookahead = barmerge.lookahead_on)
+vwap = ta.vwap(vwap_basis)
+plot(showVWAP ? vwap : na, title="VWAP", color=vwapColor, linewidth=2)
+drawLabel(start, vwap, 'VWAP', vwapColor, showVWAP)
+
+// EMAs
+ema20 = ta.ema(C_dt, 20)
+ema50 = ta.ema(C_dt, 50)
+ema200 = ta.ema(C_dt, 200)
+plot(showEMAs ? ema20 : na, title="EMA 20", color=ema20Color, linewidth = 1, style=plot.style_linebr, display=plotInfoDisplayLocation)
+plot(showEMAs ? ema50 : na, title="EMA 50", color=ema50Color, linewidth = 1, style=plot.style_linebr, display=plotInfoDisplayLocation)
+plot(showEMAs ? ema200 : na, title="EMA 200", color=ema200Color, linewidth = 1, style=plot.style_linebr, display=plotInfoDisplayLocation)
+
+drawLabel(start, ema20, 'EMA 20', ema20Color, showEMAs)
+drawLabel(start, ema50, 'EMA 50', ema50Color, showEMAs)
+drawLabel(start, ema200, 'EMA 200', ema200Color, showEMAs)
+
+// Plotting Previous Day High/Low
+plot(showPrevHighLow and showDaily ? prevDayHigh : na, title="Previous Day High", color=rColor, linewidth=1, style=plot.style_line, display=plotInfoDisplayLocation)
+plot(showPrevHighLow and showDaily ? prevDayLow : na, title="Previous Day Low", color=sColor, linewidth=1, style=plot.style_line, display=plotInfoDisplayLocation)
+drawLabel(start, prevDayHigh, 'PD High', rColor, showPrevHighLow and showDaily)
+drawLabel(start, prevDayLow, 'PD Low', sColor, showPrevHighLow and showDaily)
+
+plot(showPrevHighLow and showWeekly ? prevWeekHigh : na, title="Previous Week High", color=rColor, linewidth=1, style=plot.style_line, display=plotInfoDisplayLocation)
+plot(showPrevHighLow and showWeekly ? prevWeekLow : na, title="Previous Week Low", color=sColor, linewidth=1, style=plot.style_line, display=plotInfoDisplayLocation)
+drawLabel(start, prevWeekHigh, 'PW High', rColor, showPrevHighLow and showWeekly)
+drawLabel(start, prevWeekLow, 'PW Low', sColor, showPrevHighLow and showWeekly)
+
+plot(showPrevHighLow and showMonthly ? prevMonthHigh : na, title="Previous Month High", color=rColor, linewidth=1, style=plot.style_line, display=plotInfoDisplayLocation)
+plot(showPrevHighLow and showMonthly ? prevMonthLow : na, title="Previous Month Low", color=sColor, linewidth=1, style=plot.style_line, display=plotInfoDisplayLocation)
+drawLabel(start, prevMonthHigh, 'PM High', rColor, showPrevHighLow and showMonthly)
+drawLabel(start, prevMonthLow, 'PM Low', sColor, showPrevHighLow and showMonthly)
+
+// Plotting Levels
+p_pivot = plot(showDaily ? dailyPivot : na, title="Daily Pivot", color=cprColor, linewidth=2)
+p_cprBC = plot(showDaily ? BC_d : na, title="Daily BC", color=cprColor, linewidth=2)
+p_cprTC = plot(showDaily ? TC_d : na, title="Daily TC", color=cprColor, linewidth=2)
+fill(p_cprTC, p_cprBC, color = color.new(cprColor, fTransp))
+drawLabel(start, dailyPivot, 'Pivot', cprColor, showDaily)
+drawLabel(start, BC_d, 'BC D', cprColor, showDaily)
+drawLabel(start, TC_d, 'TC D', cprColor, showDaily)
+
+plot(showDaily ? dailyR1 : na, title="Daily R1", color=rColor, linewidth=1, display=plotInfoDisplayLocation)
+plot(showDaily ? dailyS1 : na, title="Daily S1", color=sColor, linewidth=1, display=plotInfoDisplayLocation)
+plot(showDaily ? dailyR2 : na, title="Daily R2", color=rColor, linewidth=1, display=plotInfoDisplayLocation)
+plot(showDaily ? dailyS2 : na, title="Daily S2", color=sColor, linewidth=1, display=plotInfoDisplayLocation)
+plot(showDaily ? dailyR3 : na, title="Daily R3", color=rColor, linewidth=1, display=plotInfoDisplayLocation)
+plot(showDaily ? dailyS3 : na, title="Daily S3", color=sColor, linewidth=1, display=plotInfoDisplayLocation)
+plot(showDaily ? dailyR4 : na, title="Daily R4", color=rColor, linewidth=1, display=plotInfoDisplayLocation)
+plot(showDaily ? dailyS4 : na, title="Daily S4", color=sColor, linewidth=1, display=plotInfoDisplayLocation)
+plot(showDaily ? C_d : na, title="Daily Close", color=cColor, linewidth=1, display=plotInfoDisplayLocation)
+
+drawLabel(start, dailyR1, 'R1 Daily', rColor, showDaily)
+drawLabel(start, dailyS1, 'S1 Daily', sColor, showDaily)
+drawLabel(start, dailyR2, 'R2 Daily', rColor, showDaily)
+drawLabel(start, dailyS2, 'S2 Daily', sColor, showDaily)
+drawLabel(start, dailyR3, 'R3 Daily', rColor, showDaily)
+drawLabel(start, dailyS3, 'S3 Daily', sColor, showDaily)
+drawLabel(start, dailyR4, 'R4 Daily', rColor, showDaily)
+drawLabel(start, dailyS4, 'S4 Daily', sColor, showDaily)
+drawLabel(start, C_d, 'Daily Close', cColor, showDaily)
+
+// Draw tomorrow's levels
+drawLabel(tomorrowStart, H_dt, "PD High", rColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, L_dt, "PD Low", sColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, dailyPivot_t, "Pivot", cprColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, BC_dt, "BC", cprColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, TC_dt, "TC", cprColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, dailyR1_t, "R1", rColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, dailyR2_t, "R2", rColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, dailyR3_t, "R3", rColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, dailyR4_t, "R4", rColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, dailyS1_t, "S1", sColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, dailyS2_t, "S2", sColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, dailyS3_t, "S3", sColor, showTomorrowLevels and showDaily)
+drawLabel(tomorrowStart, dailyS4_t, "S4", sColor, showTomorrowLevels and showDaily)
 
 
-// Pivot Range
-P = (H + L + C) / 3
-BC = (H + L)/2
-TC = (P - BC) + P 
+p_pivot_w = plot(showWeekly ? weeklyPivot : na, title="Weekly Pivot", color=cprColor_w, linewidth=2)
+p_cprBC_w = plot(showWeekly ? BC_w : na, title="Weekly BC", color=cprColor_w, linewidth=2)
+p_cprTC_w = plot(showWeekly ? TC_w : na, title="Weekly TC", color=cprColor_w, linewidth=2)
+fill(p_cprTC_w, p_cprBC_w, color = color.new(cprColor_w, fTransp))
+drawLabel(start, weeklyPivot, 'Pivot W', cprColor_w, showWeekly)
+drawLabel(start, BC_w, 'BC W', cprColor_w, showWeekly)
+drawLabel(start, TC_w, 'TC W', cprColor_w, showWeekly)
 
+plot(showWeekly ? weeklyR1 : na, title="Weekly R1", color=rColor_w, style=plot.style_stepline_diamond, display=plotInfoDisplayLocation)
+plot(showWeekly ? weeklyR2 : na, title="Weekly R2", color=rColor_w, style=plot.style_stepline_diamond, display=plotInfoDisplayLocation)
+plot(showWeekly ? weeklyR3 : na, title="Weekly R3", color=rColor_w, style=plot.style_stepline_diamond, display=plotInfoDisplayLocation)
+plot(showWeekly ? weeklyR4 : na, title="Weekly R4", color=rColor_w, style=plot.style_stepline_diamond, display=plotInfoDisplayLocation)
+plot(showWeekly ? weeklyS1 : na, title="Weekly S1", color=sColor_w, style=plot.style_stepline_diamond, display=plotInfoDisplayLocation)
+plot(showWeekly ? weeklyS2 : na, title="Weekly S2", color=sColor_w, style=plot.style_stepline_diamond, display=plotInfoDisplayLocation)
+plot(showWeekly ? weeklyS3 : na, title="Weekly S3", color=sColor_w, style=plot.style_stepline_diamond, display=plotInfoDisplayLocation)
+plot(showWeekly ? weeklyS4 : na, title="Weekly S4", color=sColor_w, style=plot.style_stepline_diamond, display=plotInfoDisplayLocation)
+plot(showWeekly ? C_w : na, title="Weekly Close", color=cColor, linewidth=1, display=plotInfoDisplayLocation)
 
+drawLabel(start, weeklyR1, 'R1 Weekly', rColor_w, showWeekly)
+drawLabel(start, weeklyR2, 'R2 Weekly', rColor_w, showWeekly)
+drawLabel(start, weeklyR3, 'R3 Weekly', rColor_w, showWeekly)
+drawLabel(start, weeklyR4, 'R4 Weekly', rColor_w, showWeekly)
+drawLabel(start, weeklyS1, 'S1 Weekly', sColor_w, showWeekly)
+drawLabel(start, weeklyS2, 'S2 Weekly', sColor_w, showWeekly)
+drawLabel(start, weeklyS3, 'S3 Weekly', sColor_w, showWeekly)
+drawLabel(start, weeklyS4, 'S4 Weekly', sColor_w, showWeekly)
+drawLabel(start, C_w, 'Weekly Close', cColor, showWeekly)
 
+p_pivot_m = plot(showMonthly ? monthlyPivot : na, title="Monthly Pivot", color=cprColor_m, linewidth=1)
+p_cprBC_m = plot(showMonthly ? BC_m : na, title="Monthly BC", color=cprColor_m, linewidth=1)
+p_cprTC_m = plot(showMonthly ? TC_m : na, title="Monthly TC", color=cprColor_m, linewidth=1)
+fill(p_cprTC_m, p_cprBC_m, color = color.new(cprColor_m, fTransp))
+drawLabel(start, monthlyPivot, 'Pivot M', cprColor_m, showMonthly)
+drawLabel(start, BC_m, 'BC M', cprColor_m, showMonthly)
+drawLabel(start, TC_m, 'TC M', cprColor_m, showMonthly)
 
+plot(showMonthly ? monthlyR1 : na, title="Monthly R1", color=rColor_m, style=plot.style_linebr, display=plotInfoDisplayLocation)
+plot(showMonthly ? monthlyR2 : na, title="Monthly R2", color=rColor_m, style=plot.style_linebr, display=plotInfoDisplayLocation)
+plot(showMonthly ? monthlyR3 : na, title="Monthly R3", color=rColor_m, style=plot.style_linebr, display=plotInfoDisplayLocation)
+plot(showMonthly ? monthlyR4 : na, title="Monthly R4", color=rColor_m, style=plot.style_linebr, display=plotInfoDisplayLocation)
+plot(showMonthly ? monthlyS1 : na, title="Monthly S1", color=sColor_m, style=plot.style_linebr, display=plotInfoDisplayLocation)
+plot(showMonthly ? monthlyS2 : na, title="Monthly S2", color=sColor_m, style=plot.style_linebr, display=plotInfoDisplayLocation)
+plot(showMonthly ? monthlyS3 : na, title="Monthly S3", color=sColor_m, style=plot.style_linebr, display=plotInfoDisplayLocation)
+plot(showMonthly ? monthlyS4 : na, title="Monthly S4", color=sColor_m, style=plot.style_linebr, display=plotInfoDisplayLocation)
+plot(showMonthly ? C_m : na, title="Monthly Close", color=cColor, linewidth=1, display=plotInfoDisplayLocation)
 
-// Resistance Levels
-R1 = 2 *P-L
-R2 = P + (H-L)
-R3 = R1 + (H -L)
-R4 = R3 + (R2-R1)
+drawLabel(start, monthlyR1, 'R1 monthly', rColor_m, showMonthly)
+drawLabel(start, monthlyR2, 'R2 monthly', rColor_m, showMonthly)
+drawLabel(start, monthlyR3, 'R3 monthly', rColor_m, showMonthly)
+drawLabel(start, monthlyR4, 'R4 monthly', rColor_m, showMonthly)
+drawLabel(start, monthlyS1, 'S1 Monthly', sColor_m, showMonthly)
+drawLabel(start, monthlyS2, 'S2 Monthly', sColor_m, showMonthly)
+drawLabel(start, monthlyS3, 'S3 Monthly', sColor_m, showMonthly)
+drawLabel(start, monthlyS4, 'S4 Monthly', sColor_m, showMonthly)
+drawLabel(start, C_m, 'Monthly Close', cColor, showMonthly)
 
+// Alerts for Daily Levels
+[pdhighCrossover, pdhighCrossUnder] = raiseAlert(prevDayHigh, "Prev Day High")
+[pdlowCrossover, pdlowCrossUnder] = raiseAlert(prevDayLow, "Prev Day Low")
+[vwapCrossover, vwapCrossUnder] = raiseAlert(vwap, "VWAP")
 
-// Support Levels
-S1 = P * 2 - H
-S2 = P - (H - L)
-S3 = S1 - (H - L)
-S4 = S3 - (S1-S2)
+[pivotCrossover, pivotCrossUnder] = raiseAlert(dailyPivot, "Daily Pivot")
+[r1Crossover, r1CrossUnder] = raiseAlert(dailyR1, "Daily R1")
+[s1Crossover,s1CrossUnder] = raiseAlert(dailyS1, "Daily S1")
+[r2Crossover,r2CrossUnder] =  raiseAlert(dailyR2, "Daily R2")
+[s2Crossover,s2CrossUnder] = raiseAlert(dailyS2, "Daily S2")
+[r3Crossover,r3CrossUnder] = raiseAlert(dailyR3, "Daily R3")
+[s3Crossover,s3CrossUnder] = raiseAlert(dailyS3, "Daily S3")
+[r4Crossover,r4CrossUnder] = raiseAlert(dailyR4, "Daily R4")
+[s4Crossover,s4CrossUnder] = raiseAlert(dailyS4, "Daily S4")
 
+// Alerts for Weekly Levels
+[weeklyPivotCrossover,weeklyPivotCrossUnder] = raiseAlert(weeklyPivot, "Weekly Pivot")
+[weeklyR1Crossover,weeklyR1CrossUnder] = raiseAlert(weeklyR1, "Weekly R1")
+[weeklyS1Crossover,weeklyS1CrossUnder] = raiseAlert(weeklyS1, "Weekly S1")
+[weeklyR2Crossover,weeklyR2CrossUnder] = raiseAlert(weeklyR2, "Weekly R2")
+[weeklyS2Crossover,weeklyS2CrossUnder] = raiseAlert(weeklyS2, "Weekly S2")
 
-// Plot Today's CPR
-if not(IsHoliday(start)) and not(IsWeekend(start)) and shouldPlotToday
-    if showR3S3
-        _r3 = line.new(start, R3, end, R3, xloc.bar_time, color=color.new(rColor, lTransp))
-        line.delete(_r3[1])
-		_r4 = line.new(start, R4, end, R4, xloc.bar_time, color=color.new(rColor, lTransp))
-        line.delete(_r4[1])
+// Alerts for Monthly Levels
+[monthlyPivotCrossover,monthlyPivotCrossUnder] = raiseAlert(monthlyPivot, "Monthly Pivot")
+[monthlyR1Crossover,monthlyR1CrossUnder] = raiseAlert(monthlyR1, "Monthly R1")
+[monthlyS1Crossover,monthlyS1CrossUnder] = raiseAlert(monthlyS1, "Monthly S1")
+[monthlyR2Crossover,monthlyR2CrossUnder] = raiseAlert(monthlyR2, "Monthly R2")
+[monthlyS2Crossover,monthlyS2CrossUnder] = raiseAlert(monthlyS2, "Monthly S2")
 
-    _r2 = line.new(start, R2, end, R2, xloc.bar_time, color=color.new(rColor, lTransp))
-    line.delete(_r2[1])
-    _r1 = line.new(start, R1, end, R1, xloc.bar_time, color=color.new(rColor, lTransp))
-    line.delete(_r1[1])
-    
-    _tc = line.new(start, TC, end, TC, xloc.bar_time, color=color.new(cprColor, lTransp))
-    line.delete(_tc[1])
-    _p = line.new(start, P, end, P, xloc.bar_time, color=color.new(cprColor, lTransp))
-    line.delete(_p[1])
-    _bc = line.new(start, BC, end, BC, xloc.bar_time, color=color.new(cprColor, lTransp))
-    line.delete(_bc[1])
-    
-    _s1 = line.new(start, S1, end, S1, xloc.bar_time, color=color.new(sColor, lTransp))
-    line.delete(_s1[1])
-    _s2 = line.new(start, S2, end, S2, xloc.bar_time, color=color.new(sColor, lTransp))
-    line.delete(_s2[1])
-    if showR3S3
-        _s3 = line.new(start, S3, end, S3, xloc.bar_time, color=color.new(sColor, lTransp))
-        line.delete(_s3[1])
-		_s4 = line.new(start, S4, end, S4, xloc.bar_time, color=color.new(sColor, lTransp))
-        line.delete(_s4[1])
-    if showPDHL
-        _pdh = line.new(start, H, end, H, xloc.bar_time, color=color.new(rColor, lTransp), style=line.style_dotted, width=2)
-        line.delete(_pdh[1])
-        _pdl = line.new(start, L, end, L, xloc.bar_time, color=color.new(sColor, lTransp), style=line.style_dotted, width=2)
-        line.delete(_pdl[1])
-    if showPDC
-        _pdc = line.new(start, C, end, C, xloc.bar_time, color=color.new(cColor, lTransp), style=line.style_dotted, width=2)
-        line.delete(_pdc[1])
+enterLong = pdhighCrossover or pdlowCrossover or vwapCrossover or pivotCrossover or r1Crossover or r2Crossover or r3Crossover or r4Crossover or s1Crossover or s2Crossover or s3Crossover or s4Crossover or weeklyR1Crossover or weeklyS1Crossover or weeklyR2Crossover or weeklyS2Crossover or weeklyPivotCrossover
 
-// Plot Today's Labels
-if not(IsHoliday(start)) and not(IsWeekend(start)) and shouldPlotToday
-	if showR3S3
-		l_r3 = label.new(start, R3, text="R3", xloc=xloc.bar_time, textcolor=rColor, style=label.style_none)
-		label.delete(l_r3[1])
-		l_r4 = label.new(start, R4, text="R4", xloc=xloc.bar_time, textcolor=rColor, style=label.style_none)
-		label.delete(l_r4[1])
-	l_r2 = label.new(start, R2, text="R2", xloc=xloc.bar_time, textcolor=rColor, style=label.style_none)
-	label.delete(l_r2[1])
-	l_r1 = label.new(start, R1, text="R1", xloc=xloc.bar_time, textcolor=rColor, style=label.style_none)
-	label.delete(l_r1[1])
+enterShort = pdhighCrossUnder or pdlowCrossUnder or vwapCrossUnder or pivotCrossUnder or r1CrossUnder or r2CrossUnder or r3CrossUnder or r4CrossUnder or s1CrossUnder or s2CrossUnder or s3CrossUnder or s4CrossUnder or weeklyR1CrossUnder or weeklyS1CrossUnder or weeklyR2CrossUnder or weeklyS2CrossUnder or weeklyPivotCrossUnder
 
-	//l_tc = label.new(start, TC, text="TC", xloc=xloc.bar_time, textcolor=cprColor, style=label.style_none)
-	//label.delete(l_tc[1])
-	l_p = label.new(start, P, text="P", xloc=xloc.bar_time, textcolor=cprColor, style=label.style_none)
-	label.delete(l_p[1])
-	//l_bc = label.new(start, BC, text="BC", xloc=xloc.bar_time, textcolor=cprColor, style=label.style_none)
-	//label.delete(l_bc[1])
-
-	l_s1 = label.new(start, S1, text="S1", xloc=xloc.bar_time, textcolor=sColor, style=label.style_none)
-	label.delete(l_s1[1])
-	l_s2 = label.new(start, S2, text="S2", xloc=xloc.bar_time, textcolor=sColor, style=label.style_none)
-	label.delete(l_s2[1])
-	if showR3S3
-		l_s3 = label.new(start, S3, text="S3", xloc=xloc.bar_time, textcolor=sColor, style=label.style_none)
-		label.delete(l_s3[1])
-		l_s4 = label.new(start, S4, text="S4", xloc=xloc.bar_time, textcolor=sColor, style=label.style_none)
-		label.delete(l_s4[1])
-	if showPDHL
-		l_pdh = label.new(start, H, text="PD High", xloc=xloc.bar_time, textcolor=rColor, style=label.style_none)
-		label.delete(l_pdh[1])
-		l_pdl = label.new(start, L, text="PD Low", xloc=xloc.bar_time, textcolor=sColor, style=label.style_none)
-		label.delete(l_pdl[1])
-	if showPDC
-		l_pdc = label.new(start, C, text="PD Close", xloc=xloc.bar_time, textcolor=cColor, style=label.style_none)
-		label.delete(l_pdc[1])
-
-
-// Calculate Tomorrow's CPR
-// Get High, Low and Close
-tH = getSeries(high, 'D')
-tL = getSeries(low, 'D')
-tC = getSeries(close, 'D')
-
-// Pivot Range
-tP = (tH + tL + tC) / 3 
-tBC = (tH + tL)/2
-tTC = (tP - tBC) + tP 
-
-
-
-
-
-// Resistance Levels
-tR1 = 2 *tP-tL
-tR2 = tP + (tH-tL)
-tR3 = tR1 + (tH -tL)
-tR4 = tR3+ (tR2-tR1)
-
-
-// Support Levels
-tS1 = tP * 2 - tH
-tS2 = tP - (tH - tL)
-tS3 = tS1 - (tH - tL)
-tS4 = tS3 - (tS1-tS2)
-
-
-// Plot Tomorrow's CPR
-if showTomorrowCPR
-	if showR3S3
-		_t_r3 = line.new(tom_start, tR3, tom_end, tR3, xloc.bar_time, color=color.new(rColor, lTransp))
-		line.delete(_t_r3[1])
-		_t_r4 = line.new(tom_start, tR4, tom_end, tR4, xloc.bar_time, color=color.new(rColor, lTransp))
-		line.delete(_t_r4[1])
-	_t_r2 = line.new(tom_start, tR2, tom_end, tR2, xloc.bar_time, color=color.new(rColor, lTransp))
-	line.delete(_t_r2[1])
-	_t_r1 = line.new(tom_start, tR1, tom_end, tR1, xloc.bar_time, color=color.new(rColor, lTransp))
-	line.delete(_t_r1[1])
-
-	_t_tc = line.new(tom_start, tTC, tom_end, tTC, xloc.bar_time, color=color.new(cprColor, lTransp),width = 2)
-	line.delete(_t_tc[1])
-	_t_p = line.new(tom_start, tP, tom_end, tP, xloc.bar_time, color=color.new(cprColor, lTransp),width = 2)
-	line.delete(_t_p[1])
-	_t_bc = line.new(tom_start, tBC, tom_end, tBC, xloc.bar_time, color=color.new(cprColor, lTransp),width = 2)
-	line.delete(_t_bc[1])
-
-	_t_s1 = line.new(tom_start, tS1, tom_end, tS1, xloc.bar_time, color=color.new(sColor, lTransp))
-	line.delete(_t_s1[1])
-	_t_s2 = line.new(tom_start, tS2, tom_end, tS2, xloc.bar_time, color=color.new(sColor, lTransp))
-	line.delete(_t_s2[1])
-	if showR3S3
-		_t_s3 = line.new(tom_start, tS3, tom_end, tS3, xloc.bar_time, color=color.new(sColor, lTransp))
-		line.delete(_t_s3[1])
-		_t_s4 = line.new(tom_start, tS4, tom_end, tS4, xloc.bar_time, color=color.new(sColor, lTransp))
-		line.delete(_t_s4[1])
-    if showPDHL
-        _pdth = line.new(tom_start, tH, tom_end, tH, xloc.bar_time, color=color.new(rColor, lTransp), style=line.style_dotted, width=2)
-        line.delete(_pdth[1])
-        _pdtl = line.new(tom_start, tL, tom_end, tL, xloc.bar_time, color=color.new(sColor, lTransp), style=line.style_dotted, width=2)
-        line.delete(_pdtl[1])
-    if showPDC
-        _pdtc = line.new(tom_start, tC, tom_end, tC, xloc.bar_time, color=color.new(cColor, lTransp), style=line.style_dotted, width=2)
-        line.delete(_pdtc[1])
-
-// Plot Tomorrow's Labels
-if showTomorrowCPR
-	if showR3S3
-		l_t_r3 = label.new(tom_start, tR3, text="R3", xloc=xloc.bar_time, textcolor=rColor, style=label.style_none)
-		label.delete(l_t_r3[1])
-		l_t_r4 = label.new(tom_start, tR4, text="R4", xloc=xloc.bar_time, textcolor=rColor, style=label.style_none)
-		label.delete(l_t_r4[1])
-	l_t_r2 = label.new(tom_start, tR2, text="R2", xloc=xloc.bar_time, textcolor=rColor, style=label.style_none)
-	label.delete(l_t_r2[1])
-	l_t_r1 = label.new(tom_start, tR1, text="R1", xloc=xloc.bar_time, textcolor=rColor, style=label.style_none)
-	label.delete(l_t_r1[1])
-
-	//l_t_tc = label.new(tom_start, tTC, text="TC", xloc=xloc.bar_time, textcolor=cprColor, style=label.style_none)
-	//label.delete(l_t_tc[1])
-	l_t_p = label.new(tom_start, tP, text="P", xloc=xloc.bar_time, textcolor=cprColor, style=label.style_none)
-	label.delete(l_t_p[1])
-	//l_t_bc = label.new(tom_start, tBC, text="BC", xloc=xloc.bar_time, textcolor=cprColor, style=label.style_none)
-	//label.delete(l_t_bc[1])
-
-	l_t_s1 = label.new(tom_start, tS1, text="S1", xloc=xloc.bar_time, textcolor=sColor, style=label.style_none)
-	label.delete(l_t_s1[1])
-	l_t_s2 = label.new(tom_start, tS2, text="S2", xloc=xloc.bar_time, textcolor=sColor, style=label.style_none)
-	label.delete(l_t_s2[1])
-	if showR3S3
-		l_t_s3 = label.new(tom_start, tS3, text="S3", xloc=xloc.bar_time, textcolor=sColor, style=label.style_none)
-		label.delete(l_t_s3[1])
-		l_t_s4 = label.new(tom_start, tS4, text="S4", xloc=xloc.bar_time, textcolor=sColor, style=label.style_none)
-		label.delete(l_t_s4[1])
-	if showPDHL
-		l_pdth = label.new(tom_start, tH, text="PD High", xloc=xloc.bar_time, textcolor=rColor, style=label.style_none)
-		label.delete(l_pdth[1])
-		l_pdtl = label.new(tom_start, tL, text="PD Low", xloc=xloc.bar_time, textcolor=sColor, style=label.style_none)
-		label.delete(l_pdtl[1])
-	if showPDC
-		l_pdtc = label.new(tom_start, tC, text="PD Close", xloc=xloc.bar_time, textcolor=cColor, style=label.style_none)
-		label.delete(l_pdtc[1])
-
-
-//Plot Historical CPR
-p_r4 = plot(showHistoricalCPR ? showR3S3 ? R4 : na : na, title=' R4', color=rColor, transp=lTransp, style=lStyle)
-p_r3 = plot(showHistoricalCPR ? showR3S3 ? R3 : na : na, title=' R3', color=rColor, transp=lTransp, style=lStyle)
-p_r2 = plot(showHistoricalCPR ? R2 : na, title=' R2', color=rColor, transp=lTransp, style=lStyle)
-p_r1 = plot(showHistoricalCPR ? R1 : na, title=' R1', color=rColor, transp=lTransp, style=lStyle)
-
-
-p_cprTC = plot(showHistoricalCPR ? TC : na, title=' TC', color=cprColor, transp=lTransp, style=lStyle)
-p_cprP = plot(showHistoricalCPR ? P : na, title=' P', color=cprColor, transp=lTransp, style=lStyle)
-p_cprBC = plot(showHistoricalCPR ? BC : na, title=' BC', color=cprColor, transp=lTransp, style=lStyle)
-
-s1 = plot(showHistoricalCPR ? S1 : na, title=' S1', color=sColor, transp=lTransp, style=lStyle)
-s2 = plot(showHistoricalCPR ? S2 : na, title=' S2', color=sColor, transp=lTransp, style=lStyle)
-s3 = plot(showHistoricalCPR ? showR3S3 ? S3 : na : na, title=' S3', color=sColor, transp=lTransp, style=lStyle)
-s4 = plot(showHistoricalCPR ? showR3S3 ? S4 : na : na, title=' S4', color=sColor, transp=lTransp, style=lStyle)
-
-fill(p_cprTC, p_cprBC, color=color.purple, transp=fTransp)
-
-vwapS =plot(showVWAP ? vwap(close) : na,title =' Vwap Color' ,color=color.blue,linewidth = 2)
-
-// Bollinger Bands inputs
-
-// Calculate Bollinger Bands
-basis = sma(close, 20)
-dev = 2.0 * stdev(close, 20)
-
-upper_band = basis + dev
-lower_band = basis - dev
-
-// Plotting the Bollinger Bands
-//plot(basis, color=color.blue, title="Basis")
-//UB=plot( upper_band,  title="Upper Band",linewidth = 0,display = display.none)
-//LB=plot( lower_band,  title="Lower Band",linewidth = 0,display = display.none)
-//fill(UB, LB, color=color.rgb(235, 235, 231, 43), title="BB Fill")
+plotchar(enterLong,  "Go Long",  "▲", location.belowbar, color.lime, size = size.tiny)
+plotchar(enterShort, "Go Short", "▼", location.abovebar,    color.red,  size = size.tiny)

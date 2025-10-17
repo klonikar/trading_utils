@@ -161,8 +161,8 @@ prevMonthHigh = H_m
 prevMonthLow = L_m
 
 // VWAP
-vwap_basis = request.security(syminfo.tickerid, next_higher_tf, close[1], lookahead = barmerge.lookahead_on)
-vwap = ta.vwap(vwap_basis)
+vwap_basis = request.security(syminfo.tickerid, next_higher_tf, close, lookahead = barmerge.lookahead_on)
+vwap = ta.vwap(vwap_basis)[1]
 plot(showVWAP ? vwap : na, title="VWAP", color=vwapColor, linewidth=2)
 drawLabel(start, vwap, 'VWAP', vwapColor, showVWAP)
 

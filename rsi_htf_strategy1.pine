@@ -10,6 +10,7 @@ htf        = input.timeframe("60", "Higher Timeframe for Indicators")
 rsiLen     = input.int(14, "RSI Length", minval=2)
 rsiMaLen   = input.int(9, "RSI MA Length", minval=1)
 adxLen     = input.int(14, "ADX Length")
+adxSmoothing = input.int(14, minval=1, maxval=50, title="ADX Smoothing", tooltip="Smoothing period for ADX calculation")
 stLen      = input.int(10, "Supertrend ATR Length")
 stMult     = input.float(3.0, "Supertrend ATR Multiplier")
 
@@ -29,7 +30,7 @@ rsiMA_HTF = request.security(syminfo.tickerid, htf, ta.sma(ta.rsi(close, rsiLen)
 //——————————————
 // 2️⃣ ADX on HTF
 //——————————————
-adxHTF = request.security(syminfo.tickerid, htf, ta.adx(adxLen))
+[diPlus, diMinus, adxHTF] = request.security(syminfo.tickerid, htf, ta.dmi(adxLen, adxSmoothing))
 
 //——————————————
 // 3️⃣ Supertrend on HTF
@@ -41,8 +42,8 @@ adxHTF = request.security(syminfo.tickerid, htf, ta.adx(adxLen))
 //——————————————
 bullRsi   = rsiHTF > rsiMA_HTF
 bearRsi   = rsiHTF < rsiMA_HTF
-trendBull = adxHTF > 20 and stDirHTF == 1
-trendBear = adxHTF > 20 and stDirHTF == -1
+trendBull = adxHTF > 20 and stDirHTF == -1
+trendBear = adxHTF > 20 and stDirHTF == 1
 
 longCond  = bullRsi and trendBull
 shortCond = bearRsi and trendBear
@@ -74,13 +75,13 @@ if (exitShort)
 //——————————————
 // Plotting
 //——————————————
-plot(stHTF, "HTF Supertrend", color=color.new(color.blue, 0), linewidth=2)
+plot(stHTF, "HTF Supertrend", color=stDirHTF == -1 ? color.new(color.green, 0) : color.new(color.red, 0), linewidth=2)
 
-plotshape(longCond,  title="Long",  style=shape.labelup,   color=color.green, text="Long", location=location.belowbar)
-plotshape(shortCond, title="Short", style=shape.labeldown, color=color.red,   text="Short", location=location.abovebar)
+plotshape(longCond,  title="Long",  style=shape.labelup,   color=color.green, text="", location=location.belowbar)
+plotshape(shortCond, title="Short", style=shape.labeldown, color=color.red,   text="", location=location.abovebar)
 
-plotshape(exitLong,  title="Exit Long",  style=shape.circle, color=color.new(color.green, 0), text="XL")
-plotshape(exitShort, title="Exit Short", style=shape.circle, color=color.new(color.red, 0), text="XS")
+plotshape(exitLong,  title="Exit Long",  style=shape.arrowdown, color=color.new(color.red, 0), text="XL")
+plotshape(exitShort, title="Exit Short", style=shape.arrowup, color=color.new(color.green, 0), text="XS")
 
 //——————————————
 // RSI Panel
@@ -120,4 +121,3 @@ if barstate.islast
     else
         label.set_x(dash, bar_index)
         label.set_text(dash, txt)
-

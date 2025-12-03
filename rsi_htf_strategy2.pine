@@ -1,0 +1,121 @@
+//@version=6
+strategy("MTF RSI + ADX + Supertrend Strategy (HTF All Using Method-1)", 
+     overlay=true, margin_long=100, margin_short=100, 
+     initial_capital=100000, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+//---------------------------------------------------------
+// User Inputs
+//---------------------------------------------------------
+htf        = input.timeframe("60", "Higher Timeframe for Indicators")
+rsiLen     = input.int(14, "RSI Length", minval=2)
+rsiMaLen   = input.int(9, "RSI MA Length", minval=1)
+adxLen     = input.int(14, "ADX Length")
+stLen      = input.int(10, "Supertrend ATR Length")
+stMult     = input.float(3.0, "Supertrend ATR Multiplier")
+
+//---------------------------------------------------------
+// Supertrend Function
+//---------------------------------------------------------
+supertrend(_mult, _len) =>
+    [st, dir] = ta.supertrend(_mult, _len)
+    [st, dir]
+
+//---------------------------------------------------------
+// 1️⃣ True HTF RSI using METHOD-1
+//---------------------------------------------------------
+rsiHTF = request.security(syminfo.tickerid, htf, ta.rsi(close, rsiLen))
+rsiMA_HTF = request.security(syminfo.tickerid, htf, ta.sma(ta.rsi(close, rsiLen), rsiMaLen))
+
+//---------------------------------------------------------
+// 2️⃣ True HTF ADX
+//---------------------------------------------------------
+adxHTF = request.security(syminfo.tickerid, htf, ta.adx(adxLen))
+
+//---------------------------------------------------------
+// 3️⃣ True HTF Supertrend
+//---------------------------------------------------------
+[stHTF, stDirHTF] = request.security(syminfo.tickerid, htf, supertrend(stMult, stLen))
+
+//---------------------------------------------------------
+// Entry Logic
+//---------------------------------------------------------
+bullRsi   = rsiHTF > rsiMA_HTF
+bearRsi   = rsiHTF < rsiMA_HTF
+trendBull = adxHTF > 20 and stDirHTF == 1
+trendBear = adxHTF > 20 and stDirHTF == -1
+
+longCond  = bullRsi and trendBull
+shortCond = bearRsi and trendBear
+
+//---------------------------------------------------------
+// Exit Logic (Opposite signal closes trade)
+//---------------------------------------------------------
+exitLong  = shortCond
+exitShort = longCond
+
+//---------------------------------------------------------
+// Strategy Orders
+//---------------------------------------------------------
+if (longCond)
+    strategy.entry("Long", strategy.long)
+
+if (exitLong)
+    strategy.close("Long")
+
+if (shortCond)
+    strategy.entry("Short", strategy.short)
+
+if (exitShort)
+    strategy.close("Short")
+
+//---------------------------------------------------------
+// Plotting Supertrend
+//---------------------------------------------------------
+plot(stHTF, "HTF Supertrend", color=color.new(color.blue, 0), linewidth=2)
+
+plotshape(longCond,  title="Long",  style=shape.labelup,   color=color.green, text="LONG")
+plotshape(shortCond, title="Short", style=shape.labeldown, color=color.red,   text="SHORT")
+
+plotshape(exitLong,  title="Exit Long", style=shape.labeldown, color=color.yellow, text="EXIT L")
+plotshape(exitShort, title="Exit Short", style=shape.labelup,   color=color.purple, text="EXIT S")
+
+//---------------------------------------------------------
+// Alerts
+//---------------------------------------------------------
+alertcondition(longCond,  title="Long Signal",   message="Long signal triggered (HTF Trend Confirmed)")
+alertcondition(shortCond, title="Short Signal",  message="Short signal triggered (HTF Trend Confirmed)")
+alertcondition(exitLong,  title="Exit Long",     message="Exit long triggered (Opposite HTF signal)")
+alertcondition(exitShort, title="Exit Short",    message="Exit short triggered (Opposite HTF signal)")
+
+//---------------------------------------------------------
+// RSI Panel Plot
+//---------------------------------------------------------
+rsiPlot    = plot(rsiHTF,       "HTF RSI",    color=color.yellow)
+rsiMaPlot  = plot(rsiMA_HTF,    "HTF RSI MA", color=color.orange)
+hline(70)
+hline(30)
+
+//---------------------------------------------------------
+// Dashboard
+//---------------------------------------------------------
+var label dashboard = na
+
+// Build status lines
+trendStr = stDirHTF == 1 ? "UP" : "DOWN"
+signalStr = longCond ? "BULLISH" : shortCond ? "BEARISH" : "FLAT"
+
+dbText = 
+     "MTF Dashboard (" + htf + ")\n" +
+     "RSI: " + str.tostring(rsiHTF, "#.##") + "\n" +
+     "RSI MA: " + str.tostring(rsiMA_HTF, "#.##") + "\n" +
+     "ADX: " + str.tostring(adxHTF, "#.##") + "\n" +
+     "ST Trend: " + trendStr + "\n" +
+     "Signal: " + signalStr
+
+// Create / Update dashboard label
+if barstate.islast
+    label.delete(dashboard)
+    dashboard := label.new(x=bar_index, y=high, text=dbText, 
+        color=color.new(color.black, 0), textcolor=color.white,
+        style=label.style_label_left, size=size.large)
+

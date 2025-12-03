@@ -14,6 +14,7 @@ showVWAP = input.bool(true, title="Show VWAP")
 showPrevHighLow = input.bool(true, title="Show Previous Day High/Low")
 showTomorrowLevels = input.bool(false, "Show Tomorrow Levels")
 showEMAs = input.bool(false, "Show EMAs")
+strategyTF = input.timeframe('60', 'Strategy Timeframe', ['5', '15', '30', '60', 'D', 'W'])//'60'
 
 // Today's Session Start timestamp
 y = year(timenow)
@@ -85,15 +86,16 @@ drawLabel(x, y, txt, clr, draw=true) =>
 
 calculateLongShortConditions(level) =>
     // Store individual crossover results in variables
-    highCrossOver = ta.crossover(high, level)
-    closeCrossOver = ta.crossover(close, level)
-    openCrossOver = ta.crossover(open, level)
-    lowCrossOver = ta.crossover(low, level)
+    [O_t, H_t, L_t, C_t] = request.security(syminfo.tickerid, strategyTF, [open, high, low, close], lookahead = barmerge.lookahead_on)
+    highCrossOver = ta.crossover(H_t, level)
+    closeCrossOver = ta.crossover(C_t, level)
+    openCrossOver = ta.crossover(O_t, level)
+    lowCrossOver = ta.crossover(L_t, level)
 
-    highCrossUnder = ta.crossunder(high, level)
-    closeCrossUnder = ta.crossunder(close, level)
-    openCrossUnder = ta.crossunder(open, level)
-    lowCrossUnder = ta.crossunder(low, level)
+    highCrossUnder = ta.crossunder(H_t, level)
+    closeCrossUnder = ta.crossunder(C_t, level)
+    openCrossUnder = ta.crossunder(O_t, level)
+    lowCrossUnder = ta.crossunder(L_t, level)
 
     // Combine variables to build the final long and short conditions
     longCondition = highCrossOver or closeCrossOver or openCrossOver or lowCrossOver

@@ -1,0 +1,123 @@
+//@version=6
+strategy("MTF RSI + ADX + Supertrend Strategy (HTF All Using Method-1) — With Exits + Alerts + Dashboard", 
+     overlay=true, margin_long=100, margin_short=100, 
+     initial_capital=100000, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+//——————————————
+// User Inputs
+//——————————————
+htf        = input.timeframe("60", "Higher Timeframe for Indicators")
+rsiLen     = input.int(14, "RSI Length", minval=2)
+rsiMaLen   = input.int(9, "RSI MA Length", minval=1)
+adxLen     = input.int(14, "ADX Length")
+stLen      = input.int(10, "Supertrend ATR Length")
+stMult     = input.float(3.0, "Supertrend ATR Multiplier")
+
+//——————————————
+// Supertrend Function
+//——————————————
+supertrend(_mult, _len) =>
+    [st, dir] = ta.supertrend(_mult, _len)
+    [st, dir]
+
+//——————————————
+// 1️⃣ True HTF RSI using METHOD-1
+//——————————————
+rsiHTF = request.security(syminfo.tickerid, htf, ta.rsi(close, rsiLen))
+rsiMA_HTF = request.security(syminfo.tickerid, htf, ta.sma(ta.rsi(close, rsiLen), rsiMaLen))
+
+//——————————————
+// 2️⃣ ADX on HTF
+//——————————————
+adxHTF = request.security(syminfo.tickerid, htf, ta.adx(adxLen))
+
+//——————————————
+// 3️⃣ Supertrend on HTF
+//——————————————
+[stHTF, stDirHTF] = request.security(syminfo.tickerid, htf, supertrend(stMult, stLen))
+
+//——————————————
+// Entry Logic
+//——————————————
+bullRsi   = rsiHTF > rsiMA_HTF
+bearRsi   = rsiHTF < rsiMA_HTF
+trendBull = adxHTF > 20 and stDirHTF == 1
+trendBear = adxHTF > 20 and stDirHTF == -1
+
+longCond  = bullRsi and trendBull
+shortCond = bearRsi and trendBear
+
+//——————————————
+// EXIT LOGIC
+//——————————————
+// Exit long when conditions invalidate
+exitLong  = strategy.position_size > 0 and (bearRsi or trendBear)
+
+// Exit short when conditions invalidate
+exitShort = strategy.position_size < 0 and (bullRsi or trendBull)
+
+//——————————————
+// Strategy Orders
+//——————————————
+if (longCond)
+    strategy.entry("Long", strategy.long)
+
+if (shortCond)
+    strategy.entry("Short", strategy.short)
+
+if (exitLong)
+    strategy.close("Long")
+
+if (exitShort)
+    strategy.close("Short")
+
+//——————————————
+// Plotting
+//——————————————
+plot(stHTF, "HTF Supertrend", color=color.new(color.blue, 0), linewidth=2)
+
+plotshape(longCond,  title="Long",  style=shape.labelup,   color=color.green, text="Long", location=location.belowbar)
+plotshape(shortCond, title="Short", style=shape.labeldown, color=color.red,   text="Short", location=location.abovebar)
+
+plotshape(exitLong,  title="Exit Long",  style=shape.circle, color=color.new(color.green, 0), text="XL")
+plotshape(exitShort, title="Exit Short", style=shape.circle, color=color.new(color.red, 0), text="XS")
+
+//——————————————
+// RSI Panel
+//——————————————
+rsiPlot = plot(rsiHTF, "HTF RSI", color=color.yellow)
+rsiMaPlot = plot(rsiMA_HTF, "HTF RSI MA", color=color.orange)
+hline(70)
+hline(30)
+
+//——————————————
+// ALERT CONDITIONS
+//——————————————
+alertcondition(longCond,  title="Long Entry",  message="Long Signal Triggered")
+alertcondition(shortCond, title="Short Entry", message="Short Signal Triggered")
+alertcondition(exitLong,  title="Exit Long",   message="Exit Long Triggered")
+alertcondition(exitShort, title="Exit Short",  message="Exit Short Triggered")
+
+//——————————————
+// DASHBOARD (Compact Status Panel)
+//——————————————
+var label dash = na
+
+rsiColor = rsiHTF > rsiMA_HTF ? color.green : color.red
+adxColor = adxHTF > 20 ? color.green : color.orange
+stColor  = stDirHTF == 1 ? color.green : color.red
+
+txt = "HTF: " + str.tostring(htf) + "\n" +
+      "RSI: " + str.tostring(rsiHTF, "#.0") + " (" + (rsiHTF > rsiMA_HTF ? "Bull" : "Bear") + ")\n" +
+      "ADX: " + str.tostring(adxHTF, "#.0") + (adxHTF > 20 ? " (Trending)" : " (Weak)") + "\n" +
+      "ST : " + (stDirHTF == 1 ? "Bullish" : "Bearish")
+
+if barstate.islast
+    if na(dash)
+        dash := label.new(bar_index, high, txt,
+             style=label.style_label_left, color=color.new(color.black, 0),
+             textcolor=color.white, size=size.small)
+    else
+        label.set_x(dash, bar_index)
+        label.set_text(dash, txt)
+
